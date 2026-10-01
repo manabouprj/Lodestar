@@ -37,7 +37,7 @@ def test_phase_gating(demo_dir, tmp_path):
     s = load_settings(overrides={"mode": "demo", "deployment_phase": 1,
                                  "demo": {"dataset": str(demo_dir / "banking.json")}})
     r = Orchestrator(s, store=Store(tmp_path / "p1.db")).run(persist=False)
-    assert {c.domain.value for c in r.controls} <= {"edr", "vmdr", "identity", "soc", "email"}
+    assert {c.domain.value for c in r.controls} <= {"edr", "vmdr", "identity", "soc", "email", "threat_intel"}
     assert r.correlations == []                   # correlation is a phase-2 agent
     assert r.data_quality["phase"] == 1
 

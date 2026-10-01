@@ -250,16 +250,22 @@ def cmd_validate(args) -> int:
             print(f"[{status:>4}] phase {sp.phase} {sp.agent_name:24s} {cc.adapter}")
             continue
         problems = []
-        if cc.adapter not in REGISTRY:
-            problems.append(f"unknown adapter '{cc.adapter}'")
-        if s.mode == "live":
-            missing = [k for k, v in cc.settings.items() if v in ("", None) and k != "coverage_pct"]
-            if missing:
-                problems.append(f"missing settings/env: {missing}")
-            if cc.adapter == "file_drop" and not s.path(cc.settings.get("path", "")).exists():
-                problems.append(f"drop folder missing: {cc.settings.get('path')}")
+        srcs = cc.sources or [{"adapter": cc.adapter, "product": cc.product, "settings": cc.settings}]
+        for src in srcs:
+            tag = f"{src['product'] or src['adapter']}: " if len(srcs) > 1 else ""
+            if src["adapter"] not in REGISTRY:
+                problems.append(f"{tag}unknown adapter '{src['adapter']}'")
+            if s.mode == "live":
+                st = src["settings"]
+                missing = [k for k, v in st.items() if v in ("", None) and k != "coverage_pct"]
+                if missing:
+                    problems.append(f"{tag}missing settings/env: {missing}")
+                if src["adapter"] in ("file_drop", "csaf", "taxii", "mailbox") and st.get("path") and \
+                        (st.get("mode", "path") == "path") and not s.path(st["path"]).exists():
+                    problems.append(f"{tag}folder missing: {st['path']}")
         ok &= not problems
-        print(f"[{'FAIL' if problems else ' OK '}] phase {sp.phase} {sp.agent_name:24s} {cc.adapter:26s} {'; '.join(problems)}")
+        label = "+".join(x["adapter"] for x in srcs)
+        print(f"[{'FAIL' if problems else ' OK '}] phase {sp.phase} {sp.agent_name:24s} {label[:26]:26s} {'; '.join(problems)}")
     missing_mand = [m for m in vert.mandatory_domains if not (s.connectors.get(m) and s.connectors[m].enabled)]
     if missing_mand:
         print(f"[WARN] mandatory controls for {vert.name} not enabled: {missing_mand}")

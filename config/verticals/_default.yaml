@@ -27,6 +27,11 @@ kris:
   - {metric: phishing_click_rate_pct,       label: Phishing simulation click rate,      appetite: 5,   direction: lower_better,  unit: "%"}
   - {metric: mttr_critical_days,            label: Mean time to remediate (critical),   appetite: 10,  direction: lower_better,  unit: " days"}
   - {metric: mttd_hours,                    label: Mean time to detect,                 appetite: 4,   direction: lower_better,  unit: " h"}
+  - {metric: sector_targeted_vulns_open,     label: Sector-targeted vulns open (CERT / ISAC advisories), appetite: 0, direction: lower_better, unit: ""}
+  - {metric: bounty_high_open_past_sla,      label: Researcher-reported high/critical flaws past SLA, appetite: 0, direction: lower_better, unit: ""}
   - {metric: toxic_combinations_open,       label: Open attack paths (toxic combos),    appetite: 0,   direction: lower_better,  unit: ""}
 crown_jewel_services: [Core ERP, Email & collaboration, Customer portal]
 terminology: {}
+sectors: []
+critical_infrastructure: false
+incident_reporting: {authority: National CERT, hours: 72}

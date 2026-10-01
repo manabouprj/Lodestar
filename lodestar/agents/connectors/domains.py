@@ -78,6 +78,22 @@ SPECS: dict[Domain, DomainSpec] = {s.domain: s for s in [
                ("Wiz", "Microsoft Defender for Cloud", "Prisma Cloud", "AWS Security Hub", "Orca"),
                ("critical_misconfigs", "public_buckets", "accounts_covered_pct", "secure_score"),
                "Read-only security reader role per cloud account", ("ms_graph_security",)),
+    DomainSpec(Domain.THREAT_INTEL, "ThreatFeedAgent", "Threat Intelligence Feeds & Advisories", 1,
+               "Ingests STIX/TAXII and MISP feeds, CSAF / ICS advisories and advisory e-mails from national CERTs, ISACs and "
+               "vendor PSIRTs; keeps only what matches our assets, sector or telemetry (CVE, product, IOC).",
+               ("National CERT / NCSC TAXII", "Sector ISAC (FS-ISAC, E-ISAC)", "MISP communities", "CISA ICS advisories (CSAF)",
+                "Vendor PSIRT advisories", "Commercial TI (Recorded Future, Mandiant, Group-IB)"),
+               ("feeds_active", "feeds_stale", "advisories_relevant_7d", "iocs_ingested_7d", "ioc_sightings_7d",
+                "sector_targeted_cves_open", "intel_to_action_hours"),
+               "Read-only TAXII/MISP API keys; read-only mailbox (Mail.Read scoped to one mailbox or IMAP over TLS)",
+               ("taxii", "misp", "csaf", "mailbox")),
+    DomainSpec(Domain.BUG_BOUNTY, "BugBountyAgent", "Bug Bounty & Vulnerability Disclosure", 2,
+               "Researcher reports from HackerOne (API + signed webhooks) or a VDP mailbox: severity, scope asset, "
+               "weakness (CWE), triage state and response-SLA breaches, matched to our assets.",
+               ("HackerOne", "Bugcrowd", "Intigriti", "YesWeHack", "security@ / VDP mailbox"),
+               ("reports_open", "triaged_awaiting_fix", "critical_open", "mean_time_to_triage_hours", "sla_breaches",
+                "bounties_pending_decision", "in_scope_internet_assets_pct"),
+               "HackerOne API token with read-only program access (Report: read); webhook secret", ("hackerone", "mailbox")),
     DomainSpec(Domain.FRAUD, "FraudSentinelAgent", "Fraud Management & Transaction Monitoring", 2,
                "Account takeover, mule networks, authorised-push-payment scams, card fraud and fraud-control health "
                "(channel coverage, disabled rules, model drift, alert backlog) - joined with cyber signals.",

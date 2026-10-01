@@ -465,6 +465,99 @@ class Gen:
             self.add("fraud", finding_type="detection", title=t, severity=sv, user_id=r.choice(self.users)["user_id"],
                      status="resolved" if r.random() < 0.82 else "open", first_seen=(self.as_of - timedelta(days=r.uniform(0, 30))).isoformat())
 
+    # ------------------------------------------------------------------ external reports & intelligence
+    def external(self):
+        """Bug bounty (HackerOne), CERT/ISAC/vendor intel (TAXII, MISP, CSAF, e-mail). Own RNG keeps other domains stable."""
+        from ..agents.connectors.adapters.intel_common import advisory_finding
+        from ..models import Severity as Sev
+        r = random.Random(self.meta["seed"] + 11)
+        ago = lambda lo, hi: (self.as_of - timedelta(days=r.uniform(lo, hi))).isoformat()  # noqa: E731
+        dom, c = self.dom, self.code
+        prof_sectors = {"banking": "financial-services", "fintech": "financial-services", "aviation": "aviation",
+                        "retail": "retail", "energy": "energy", "power_utilities": "utilities", "telecom": "telecommunications",
+                        "logistics_ports": "maritime"}
+        sector = prof_sectors[self.v]
+        # aliases that researchers and advisories use
+        app = next((a for a in self.crown_apps if a["exposure"] == "internet"), None)
+        if app is None:   # e.g. energy / utilities: crown jewels are internal OT; researchers test the public portal
+            app = self.asset(f"{c}-app-portal", "Customer & partner portal", "app", "Customer & partner portal", 4, "internet",
+                             data="confidential")
+        app.setdefault("aliases", []).extend([f"online.{dom}", f"api.{dom}"])
+        self.kev_asset.setdefault("aliases", []).append(f"vpn.{dom}")
+        www = next(a for a in self.assets if a["asset_id"] == f"{c}-srv-001")
+        www.setdefault("aliases", []).extend([f"www.{dom}", f"*.campaigns.{dom}"])
+
+        # --- bug bounty -------------------------------------------------------
+        def report(n, title, sev, host, state, tags, cwe, weakness, days, breaches=()):
+            st = "open" if state in ("new", "triaged", "needs-more-info", "retesting") else \
+                 ("false_positive" if state in ("duplicate", "informative", "not-applicable") else "resolved")
+            self.add("bug_bounty", finding_type="vulnerability", title=title, severity=sev, asset_id=host, app_id=host,
+                     status=st, source="HackerOne", first_seen=ago(*days),
+                     evidence={"tags": ["researcher_report"] + tags, "state": state, "cwe": cwe, "weakness": weakness,
+                               "researcher": f"researcher-{n:03d}", "sla_breaches": list(breaches),
+                               "url": f"https://hackerone.com/reports/{2900000 + self.meta['seed'] * 100 + n}"},
+                     remediation="Fix, ask the researcher to retest, then close; agree bounty with the programme owner.")
+        report(1, "SSRF in partner API exposes cloud instance metadata credentials", "critical", f"api.{dom}", "triaged",
+               ["triaged", "bounty_pending"], "CWE-918", "Server-Side Request Forgery (SSRF)", (2, 4))
+        self.add("waf", finding_type="detection", title="SSRF probing against /v2/partner/fetch from 37 source IPs",
+                 severity="high", asset_id=app["asset_id"], app_id=app["asset_id"], first_seen=ago(0.2, 0.8),
+                 evidence={"requests_24h": 5120, "blocked_pct": 61},
+                 remediation="Add a virtual patch blocking internal/metadata address ranges in the fetch parameter.")
+        report(2, "IDOR exposes other customers' statements via account id", "high", f"https://online.{dom}/statements", "triaged",
+               ["triaged", "bounty_pending"], "CWE-639", "Insecure Direct Object Reference (IDOR)", (5, 9))
+        report(3, "Exposed admin panel on legacy staging host", "high", f"staging-legacy.{dom}", "new", [],
+               "CWE-284", "Improper Access Control", (3, 5), ("first response", "triage"))
+        report(4, "Stored XSS in campaign landing page builder", "medium", f"spring.campaigns.{dom}", "triaged", ["triaged", "bounty_pending"],
+               "CWE-79", "Cross-site Scripting (XSS) - Stored", (8, 14))
+        for n in range(5, 5 + r.randint(10, 16)):
+            t, sv, cw = r.choice([("Missing rate limit on OTP endpoint", "medium", "CWE-307"), ("Open redirect on login", "low", "CWE-601"),
+                                  ("Verbose error discloses stack trace", "low", "CWE-209"), ("Subdomain takeover candidate", "medium", "CWE-350"),
+                                  ("Clickjacking on settings page", "low", "CWE-1021")])
+            report(n, t, sv, f"www.{dom}", r.choice(["resolved", "resolved", "duplicate", "informative", "triaged"]), [], cw, t, (5, 120))
+
+        # --- threat intelligence ---------------------------------------------
+        kev_name, kev_cve, kev_title = self.meta["kev_asset"]
+        intel = [
+            advisory_finding(source="National CERT advisory (e-mail)", source_kind="email",
+                             title=f"TLP:AMBER - Active exploitation of {kev_cve} against {sector.replace('-', ' ')} organisations",
+                             severity=Sev.CRITICAL, published=datetime.fromisoformat(ago(1, 2)), cves=[kev_cve], sectors=[sector],
+                             exploited=True, tlp="amber", advisory_id=f"NCERT-ADV-2026-{self.meta['seed']}",
+                             remediation="Apply vendor fix immediately; hunt for web-shell and session-hijack indicators."),
+            advisory_finding(source="Sector ISAC (TAXII)", source_kind="taxii",
+                             title=f"Campaign targeting {sector.replace('-', ' ')} sector: staged loader via fake software updates",
+                             severity=Sev.HIGH, published=datetime.fromisoformat(ago(2, 4)), sectors=[sector],
+                             iocs=["update-sync-cdn.example", "203.0.113.45", "198.51.100.23"], tlp="amber",
+                             advisory_id=f"report--demo-{self.meta['seed']}"),
+        ]
+        for n in range(r.randint(16, 26)):  # community noise - mostly not about us; relevance filter drops it
+            intel.append(advisory_finding(source="MISP community", source_kind="misp", title=f"MISP event {n}: commodity phishing kit infrastructure",
+                                          severity=r.choice([Sev.LOW, Sev.MEDIUM]), published=datetime.fromisoformat(ago(0, 7)),
+                                          sectors=[r.choice(["education", "healthcare", "hospitality-leisure", "manufacturing"])],
+                                          iocs=[f"kit{n}-login.example"], tlp="green", advisory_id=f"misp-demo-{n}"))
+        # telemetry that contains the ISAC indicator -> sighting
+        victim = self.users[52]
+        self.add("web_proxy", finding_type="detection", title="Connection to newly observed domain update-sync-cdn.example",
+                 severity="medium", user_id=victim["user_id"], asset_id=victim["device"], first_seen=ago(0.1, 0.6),
+                 evidence={"ioc": "update-sync-cdn.example", "bytes_out": 48211})
+        self.add("edr", finding_type="detection", title="Unsigned binary launched from %AppData% after update prompt",
+                 severity="medium", user_id=victim["user_id"], asset_id=victim["device"], first_seen=ago(0.1, 0.5),
+                 evidence={"ioc": "update-sync-cdn.example"})
+        # OT vendor advisory (CSAF) - fictional vendor/product so no real product is implied
+        if self.v in OT_VERTICALS:
+            ots = [a for a in self.assets if a["asset_type"] == "ot_device" and a["name"].split()[0] in ("PLC", "HMI", "RTU")]
+            remote = {f["asset_id"] for f in self.f["ot"] if "remote_access" in (f.get("evidence") or {}).get("tags", [])}
+            for a in ots + [x for x in self.assets if x["asset_id"] in remote]:
+                a["tags"] = sorted(set(a.get("tags", []) + ["vendor:northwind-automation", "product:nwa-controller-500"]))
+            intel.append(advisory_finding(
+                source="CISA ICS advisories (CSAF)", source_kind="csaf",
+                title="ICSA-DEMO-26-271-01: Northwind Automation NWA-Controller-500 authentication bypass (CVSS 9.8)",
+                severity=Sev.CRITICAL, published=datetime.fromisoformat(ago(1, 3)),
+                products=["vendor:northwind-automation", "product:nwa-controller-500"], sectors=["energy", "utilities", "maritime", "transportation"],
+                tlp="clear", advisory_id="ICSA-DEMO-26-271-01",
+                remediation="Upgrade firmware to 5.2.1; restrict engineering access to the controller network; monitor for unauthorised logic changes."))
+        for f in intel:
+            self.f["threat_intel"].append(json.loads(f.model_dump_json()))
+
     # ------------------------------------------------------------------ control health
     def health(self) -> dict[str, dict]:
         r, v = self.r, self.v
@@ -499,6 +592,11 @@ class Gen:
         if ot:
             h["ot"] = (71.0, 2, 4, ["2 sites without passive OT sensor"], {"ot_assets_visible_pct": 71.0, "unmanaged_remote_access": 2,
                        "critical_ot_vulns": 9, "ics_alerts": 14})
+        h["threat_intel"] = (75.0, 2, 0, ["Vendor PSIRT feed: no new data for 5 days"],
+                             {"feeds_active": 3, "feeds_stale": 1, "intel_to_action_hours": 19.0})
+        h["bug_bounty"] = (72.0, 1, 0, ["28% of internet-facing assets are not in programme scope", "1 report past first-response target"],
+                           {"in_scope_internet_assets_pct": 72.0, "mean_time_to_triage_hours": 41.0, "reports_open": 7,
+                            "critical_open": 1, "sla_breaches": 1, "bounties_pending_decision": 3, "bounties_paid_90d": 18500})
         if v in FRAUD_VERTICALS:
             h["fraud"] = (88.0, 1, 3, ["Instant-payments channel not scored in real time", "3 rules disabled"],
                           {"channel_coverage_pct": 88.0, "alert_backlog_hours": 31.0, "confirmed_loss_30d": 412_000,
@@ -524,6 +622,7 @@ class Gen:
         self.scenarios()
         self.noise()
         self.fraud()
+        self.external()
         health = self.health()
         domains = {}
         for d, items in self.f.items():
@@ -545,7 +644,8 @@ PRODUCTS = {
     "web_proxy": "Zscaler Internet Access", "ztna": "Zscaler Private Access", "pam": "CyberArk PAM",
     "cloud": "Wiz CNAPP", "sast": "Checkmarx One", "dast": "Invicti", "brand": "Recorded Future Brand Intelligence",
     "ai_security": "Prompt Security", "dlp": "Microsoft Purview DLP", "ot": "Claroty xDome", "backup": "Rubrik Security Cloud",
-    "fraud": "Feedzai",
+    "fraud": "Feedzai", "bug_bounty": "HackerOne",
+    "threat_intel": "National CERT TAXII + Sector ISAC MISP + CISA CSAF + advisory mailbox",
 }
 
 

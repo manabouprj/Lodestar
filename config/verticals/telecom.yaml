@@ -17,3 +17,6 @@ kris_extra:
   - {metric: fraud_detection_rate_pct, label: SIM-swap / subscription fraud detected before loss, appetite: 92, direction: higher_better, unit: "%"}
   - {metric: internet_facing_critical_count, label: Internet-facing critical exposures, appetite: 0, direction: lower_better, unit: ""}
 crown_jewel_services: [Mobile core (5GC/EPC), OSS/BSS, Subscriber database (HSS/UDM), Customer self-care]
+sectors: [telecommunications, communications]
+critical_infrastructure: true
+incident_reporting: {authority: Telecoms regulator and national CERT, hours: 24}

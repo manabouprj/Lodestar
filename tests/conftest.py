@@ -30,5 +30,8 @@ def banking_result(demo_dir, tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    for k in ("LODESTAR_API_KEYS", "LODESTAR_WEBHOOK_SECRET", "ANTHROPIC_API_KEY"):
+    for k in ("LODESTAR_API_KEYS", "LODESTAR_WEBHOOK_SECRET", "LODESTAR_H1_WEBHOOK_SECRET", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(k, raising=False)
+
+
+from test_api_and_config import client  # noqa: E402,F401  (shared API fixture)

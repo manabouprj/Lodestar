@@ -18,3 +18,6 @@ kris_extra:
   - {metric: backup_immutability_pct, label: Critical systems with immutable backups, appetite: 100, direction: higher_better, unit: "%"}
 crown_jewel_services: [Energy management system (EMS/SCADA), Substation automation, AMI head-end, Customer billing]
 terminology: {ot: SCADA / grid OT}
+sectors: [utilities, energy, water, infrastructure]
+critical_infrastructure: true
+incident_reporting: {authority: National critical-infrastructure authority / CERT, hours: 24}

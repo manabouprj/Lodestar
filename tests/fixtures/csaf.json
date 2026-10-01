@@ -1,0 +1,7 @@
+{"document": {"title": "Demo Vendor NWA-Controller-500 auth bypass", "category": "csaf_security_advisory", "csaf_version": "2.0",
+  "distribution": {"tlp": {"label": "CLEAR"}}, "tracking": {"id": "ICSA-DEMO-26-271-01", "current_release_date": "2026-09-28T00:00:00Z"},
+  "notes": [{"category": "general", "title": "Critical infrastructure sectors", "text": "Energy, Water and Wastewater"}]},
+ "product_tree": {"branches": [{"category": "vendor", "name": "Northwind Automation",
+   "branches": [{"category": "product_name", "name": "NWA-Controller-500", "branches": [{"category": "product_version", "name": "5.1"}]}]}]},
+ "vulnerabilities": [{"cve": "CVE-2099-0001", "scores": [{"cvss_v3": {"baseScore": 9.8}}], "remediations": [{"details": "Upgrade to 5.2.1"}],
+   "notes": [{"category": "summary", "text": "Successful exploitation could allow authentication bypass."}]}]}

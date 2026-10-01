@@ -1,3 +1,4 @@
-asset_id,name,asset_type,business_service,owner,criticality,exposure,data_classification,tags
-example-core-db-01,Core platform database,server,Core platform,platform-team@your-org.example,5,internal,restricted,crown_jewel;pci
-example-portal-01,Customer portal,app,Customer portal,digital-team@your-org.example,5,internet,confidential,crown_jewel
+asset_id,name,asset_type,business_service,owner,criticality,exposure,data_classification,tags,aliases
+example-core-db-01,Core platform database,server,Core platform,platform-team@your-org.example,5,internal,restricted,crown_jewel;pci,
+example-portal-01,Customer portal,app,Customer portal,digital-team@your-org.example,5,internet,confidential,crown_jewel,portal.your-org.example;api.your-org.example;*.campaigns.your-org.example
+example-plc-01,Pump station PLC 01,ot_device,Water distribution SCADA,ot-ops@your-org.example,5,isolated,internal,ot;vendor:northwind-automation;product:nwa-controller-500,

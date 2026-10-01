@@ -52,6 +52,8 @@ class ConnectorConfig:
     adapter: str = "mock"
     product: str = ""
     settings: dict[str, Any] = field(default_factory=dict)
+    # several sources for one domain (e.g. threat_intel: TAXII + MISP + CSAF + mailbox)
+    sources: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -105,6 +107,8 @@ def load_settings(path: str | Path | None = None, overrides: dict[str, Any] | No
         connectors[d] = ConnectorConfig(
             domain=d, enabled=bool(c.get("enabled", True)), adapter=c.get("adapter", "mock"),
             product=c.get("product", ""), settings=c.get("settings") or {},
+            sources=[{"adapter": x.get("adapter", "mock"), "product": x.get("product", ""), "settings": x.get("settings") or {}}
+                     for x in (c.get("sources") or [])],
         )
 
     sc = raw.get("scoring") or {}

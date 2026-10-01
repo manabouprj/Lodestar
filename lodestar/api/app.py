@@ -371,6 +371,26 @@ def verify_signature(body: bytes, header: str, secret: str) -> bool:
     return hmac.compare_digest(expected, header.split("=", 1)[1])
 
 
+@app.post("/api/ingest/hackerone")
+async def ingest_hackerone(request: Request):
+    """HackerOne programme webhooks (report_created, report_triaged, report_severity_updated, bounty_awarded ...).
+    Signature: X-H1-Signature: sha256=<hex HMAC-SHA256 of body> with the webhook secret (LODESTAR_H1_WEBHOOK_SECRET)."""
+    from ..agents.connectors.adapters.hackerone import map_report
+    body = await request.body()
+    if len(body) > MAX_INGEST_BYTES:
+        raise HTTPException(413, "Payload too large")
+    if not verify_signature(body, request.headers.get("X-H1-Signature", ""), os.environ.get("LODESTAR_H1_WEBHOOK_SECRET", "")):
+        raise HTTPException(401, "Invalid or missing signature")
+    data = json.loads(body)
+    report = ((data.get("data") or {}).get("report")) or data.get("report")
+    if not report or not report.get("id"):
+        return JSONResponse({"accepted": 0, "ignored": "event without report"}, status_code=202)
+    f = map_report(report)
+    n = get_store().upsert_webhook("bug_bounty", [json.loads(f.model_dump_json())])
+    get_store().audit("webhook:hackerone", "ingest", {"event": request.headers.get("X-H1-Event"), "report": report.get("id")})
+    return JSONResponse({"accepted": n}, status_code=202)
+
+
 @app.post("/api/ingest/{domain}")
 async def ingest(domain: Domain, request: Request):
     body = await request.body()

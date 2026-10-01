@@ -17,6 +17,9 @@ It is designed and should be operated as a tier-0 security system.
 | Tampering / repudiation | Audit table for every agent run, approval, pipeline run and ingest | Ship audit to SIEM |
 | Spoofed Slack / Teams requests | Slack v0 signing-secret verification with 5-minute replay window; Teams outgoing-webhook HMAC; unmapped chat users are read-only | Publish only `/api/chat/*` externally; private channels only |
 | A decision taken by the wrong person | Role check per decision type (regulatory, risk acceptance and safety-critical need decision authority); verdict audit with channel and user | Keep chat role mappings in change control |
+| Spoofed advisory / researcher e-mails | Sender allow-list; DKIM/SPF check (unverified mail capped at medium); no link following; deterministic parsing (prompt-injection text has no effect) | Dedicated mailbox with Mail.Read scoped by ApplicationAccessPolicy or read-only IMAP |
+| Leaking TLP-restricted intelligence | TLP carried on every finding; TLP:RED titles never sent to chat, notifications or reports; LLM receives aggregates only | Keep chat channels private; review TLP handling with the CERT / ISAC |
+| Storing exploit details from researchers | HackerOne proof-of-concept text is not copied; only title, severity, CWE, asset and link | Restrict HackerOne access to the AppSec team |
 | Web attacks on the dashboard | Strict CSP, `X-Frame-Options: DENY`, `nosniff`, all dynamic text HTML-escaped | — |
 
 ## Data handled

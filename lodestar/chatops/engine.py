@@ -27,7 +27,7 @@ from typing import Any
 
 from ..agents.connectors.domains import SPECS
 from ..metrics import kri_table
-from ..models import Domain, Horizon, PipelineResult, Status
+from ..models import Domain, Horizon, PipelineResult, Status, safe_title
 from ..verticals import load_vertical
 
 ACTIVE = (Status.OPEN, Status.IN_PROGRESS)
@@ -75,7 +75,8 @@ def _finding_line(f) -> str:
     if f.correlation_ids:
         tags.append("attack path")
     t = f" [{', '.join(tags)}]" if tags else ""
-    return f"• {round(f.score)} · **{f.title}**{t} · {SPECS[f.domain].title} · {f.owner_team}"
+    tlp = f" TLP:{f.tlp.upper()}" if f.tlp and f.tlp not in ("clear", "red") else ""
+    return f"• {round(f.score)} · **{safe_title(f)}**{t}{tlp} · {SPECS[f.domain].title} · {f.owner_team}"
 
 
 class ChatEngine:
@@ -100,7 +101,9 @@ class ChatEngine:
             return self.why(t[4:].strip())
         if low.startswith("team "):
             return self.team(t[5:].strip())
-        for words, fn in ((("decision", "pending", "approval", "waiting"), self.decisions),
+        for words, fn in ((("bounty", "hackerone", "researcher", "bug bounty", "vdp"), self.bounty),
+                          (("intel", "advisor", "ioc", "cert", "isac", "feed", "indicator"), self.intel),
+                          (("decision", "pending", "approval", "waiting"), self.decisions),
                           (("fraud", "mule", "payment", "takeover", "ato"), self.fraud),
                           (("path", "toxic", "correlat"), self.paths),
                           (("control", "health", "stale", "coverage"), self.controls),
@@ -117,7 +120,7 @@ class ChatEngine:
             "• `brief` - what needs attention now", "• `decisions` - approvals waiting on people",
             "• `approve DEC-xxxx 1` / `reject DEC-xxxx` / `escalate DEC-xxxx` - record your decision",
             "• `why <id or words>` - why something is prioritised", "• `team Identity & Access` - one team's queue",
-            "• `paths` · `controls` · `fraud` · `kri` · `posture`",
+            "• `paths` · `controls` · `fraud` · `intel` · `bounty` · `kri` · `posture`",
             "I never act on systems myself: containment, changes, takedowns, payment holds and risk acceptance are decided by people.",
         ], link=self.url, intent="help")
 
@@ -213,6 +216,39 @@ class ChatEngine:
         return ChatReply("Fraud & financial crime", lines, [Button(d["options"][0][:75], d["decision_id"], d["options"][0]) for d in fd[:3]],
                          self.url, "fraud")
 
+    def bounty(self) -> ChatReply:
+        ctl = next((c for c in self.r.controls if c.domain == Domain.BUG_BOUNTY), None)
+        reps = sorted([f for f in self.active if f.domain == Domain.BUG_BOUNTY], key=lambda f: -f.score)
+        if not ctl and not reps:
+            return ChatReply("Bug bounty not integrated", ["Enable the `bug_bounty` connector (HackerOne API/webhooks or a VDP mailbox)."], intent="bounty")
+        k = ctl.kpis if ctl else {}
+        lines = [f"{len(reps)} open researcher reports · {sum(1 for f in reps if 'triaged' in f.evidence.get('tags', []))} triaged awaiting fix · "
+                 f"{sum(1 for f in reps if f.evidence.get('sla_breaches'))} past response SLA · mean time to triage {k.get('mean_time_to_triage_hours', 'n/a')}h · "
+                 f"scope covers {k.get('in_scope_internet_assets_pct', 'n/a')}% of internet assets", ""]
+        lines += [_finding_line(f) + (" · not in CMDB" if "unknown_asset" in f.evidence.get("tags", []) else "") for f in reps[:6]]
+        d = [x for x in self.pending if x["type"] == "bounty_programme" or x["source"] == "LDS-014"]
+        if d:
+            lines += ["", "**Waiting on people:**"] + [_decision_line(x) for x in d]
+        return ChatReply("Bug bounty (HackerOne)", lines, link=self.url, intent="bounty")
+
+    def intel(self) -> ChatReply:
+        st = self.r.data_quality.get("intel") or {}
+        items, seen = [], {}
+        for f in sorted([f for f in self.active if f.domain == Domain.THREAT_INTEL], key=lambda f: -f.score):
+            k = f.evidence.get("advisory_id") or f.title
+            seen[k] = seen.get(k, 0) + 1
+            if seen[k] == 1:
+                items.append(f)
+        lines = [f"{st.get('advisories_ingested', 0)} advisories / indicators ingested · **{st.get('advisories_relevant', 0)} relevant to us** · "
+                 f"{st.get('ioc_sightings', 0)} indicator sighting(s) in our telemetry", ""]
+        lines += [_finding_line(f) + (f" · {f.source}" if f.source else "") +
+                  (f" · {seen[f.evidence.get('advisory_id') or f.title]} of our assets" if seen[f.evidence.get("advisory_id") or f.title] > 1 else "")
+                  for f in items[:6]]
+        paths = [c for c in self.r.correlations if Domain.THREAT_INTEL in c.domains]
+        if paths:
+            lines += ["", "**Intel-driven attack paths:**"] + [f"• {c.title} - {c.entity}" for c in paths[:4]]
+        return ChatReply("Threat intelligence & advisories", lines, link=self.url, intent="intel")
+
     def kris(self) -> ChatReply:
         rows = [r for r in kri_table(self.r.snapshot.kris, self.v) if r["status"] in ("breach", "near")]
         lines = [f"• {r['label']}: **{r['value']}{r['unit']}** vs appetite {r['appetite']}{r['unit']} ({r['status']})" for r in rows]
@@ -263,7 +299,7 @@ class ChatEngine:
         return (g if isinstance(g, datetime) else datetime.fromisoformat(str(g))).strftime("%a %d %b %Y")
 
 
-SUGGESTED = ["brief", "decisions", "fraud", "paths", "controls", "kri", "team Identity & Access"]
+SUGGESTED = ["brief", "decisions", "intel", "bounty", "fraud", "paths", "controls", "kri"]
 
 
 def precomputed(result: PipelineResult, dashboard_url: str | None = None) -> list[dict[str, Any]]:

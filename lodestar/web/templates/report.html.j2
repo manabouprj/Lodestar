@@ -146,6 +146,17 @@ footer{margin-top:40px;border-top:1px solid var(--rule);padding-top:12px;font-si
 <p class="small">Applicable frameworks for {{ vertical.name }}: {{ vertical.frameworks|join(' · ') }}</p>
 {% endif %}
 
+{% if bounty_open or intel_relevant %}
+<h2>External reports &amp; intelligence</h2>
+<div class="grid2">
+<div><b>Bug bounty</b> - {{ bounty_open|length }} open researcher report(s){% set late = bounty_open|selectattr('evidence.sla_breaches')|list %}{% if late %}, {{ late|length }} past response SLA{% endif %}.
+<ul>{% for f in bounty_open[:(6 if period != 'quarterly' else 3)] %}<li><span class="chip sev-{{ f.severity.value }}">{{ f.severity.value }}</span> {{ safe_title(f) }}{% if 'unknown_asset' in f.evidence.tags %} <span class="small">(asset not in CMDB)</span>{% endif %}</li>{% endfor %}</ul></div>
+<div><b>Threat intelligence</b> - {{ intel_stats.advisories_ingested|default(0) }} advisories/indicators ingested, {{ intel_stats.advisories_relevant|default(0) }} relevant, {{ intel_stats.ioc_sightings|default(0) }} sighted in our telemetry.
+<ul>{% for f in intel_relevant[:(6 if period != 'quarterly' else 3)] %}<li>{% if f.tlp %}<span class="chip">TLP:{{ f.tlp|upper }}</span> {% endif %}{{ safe_title(f) }} <span class="small">({{ f.source }})</span></li>{% endfor %}</ul></div>
+</div>
+<p class="small">TLP:RED material is never reproduced in reports; open the dashboard.</p>
+{% endif %}
+
 {% if fraud %}
 <h2>Fraud &amp; financial crime</h2>
 <div class="wrap"><table><thead><tr><th>Confirmed loss (30d)</th><th>Prevented (30d)</th><th class="num">Detected before loss</th><th class="num">Alert backlog</th><th class="num">Channels scored real-time</th></tr></thead><tbody>

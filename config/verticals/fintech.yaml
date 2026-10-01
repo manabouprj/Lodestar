@@ -21,3 +21,6 @@ kris_extra:
   - {metric: cloud_critical_misconfig_count, label: Critical cloud misconfigurations, appetite: 0, direction: lower_better, unit: ""}
   - {metric: internet_facing_critical_count, label: Internet-facing critical exposures, appetite: 0, direction: lower_better, unit: ""}
 crown_jewel_services: [Payments API, Wallet ledger, KYC platform, Mobile app backend]
+sectors: [financial-services, technology]
+critical_infrastructure: false
+incident_reporting: {authority: Financial services regulator, hours: 24}

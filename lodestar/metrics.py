@@ -67,6 +67,12 @@ def compute_kris(findings: list[Finding], controls: list[ControlHealth], correla
         "fraud_alert_backlog_hours": _kpi(ctl, "fraud", "alert_backlog_hours"),
         "fraud_channel_coverage_pct": _kpi(ctl, "fraud", "channel_coverage_pct"),
         "fraud_confirmed_loss_30d": _kpi(ctl, "fraud", "confirmed_loss_30d"),
+        "bounty_high_open_past_sla": float(sum(1 for f in act if f.domain == Domain.BUG_BOUNTY
+                                               and f.severity in (Severity.CRITICAL, Severity.HIGH)
+                                               and (f.evidence.get("sla_breaches") or (f.due_date and f.due_date.replace(tzinfo=f.due_date.tzinfo or timezone.utc) < now)))),
+        "sector_targeted_vulns_open": float(sum(1 for f in act if f.domain == Domain.THREAT_INTEL
+                                                and "sector_targeted" in f.evidence.get("tags", []) and f.evidence.get("matched_cves"))),
+        "intel_ioc_sightings_open": float(sum(1 for f in act if f.domain == Domain.THREAT_INTEL and "sighted" in f.evidence.get("tags", []))),
         "shadow_ai_users": _kpi(ctl, "web_proxy", "shadow_ai_users", _kpi(ctl, "ai_security", "unsanctioned_ai_apps")),
     }
     return {key: round(float(v), 2) for key, v in k.items() if v is not None}

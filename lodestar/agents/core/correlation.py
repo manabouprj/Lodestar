@@ -137,7 +137,7 @@ RULES: tuple[Rule, ...] = (
          ("T1190",)),
     Rule("LDS-009", "Unmanaged remote access into OT", "asset",
          (all_of(d(Domain.OT), tag("remote_access")),
-          all_of(d(Domain.OT, Domain.VMDR, Domain.ZTNA, Domain.FIREWALL), sev_at_least(Severity.HIGH))),
+          all_of(d(Domain.OT, Domain.VMDR, Domain.ZTNA, Domain.FIREWALL, Domain.THREAT_INTEL), sev_at_least(Severity.HIGH))),
          Severity.CRITICAL,
          "An OT asset is reachable via unmanaged vendor remote access AND carries high-risk weaknesses.",
          "Disable direct access; force vendor sessions through ZTNA/PAM jump host with recording and approval.",
@@ -173,6 +173,31 @@ RULES: tuple[Rule, ...] = (
          "Credential stuffing against a customer-facing login AND confirmed account-takeover activity on the same channel.",
          "Turn on bot management and device-bound step-up for the login; reset affected customer credentials.",
          ("T1110.004",)),
+    # ---- external reports & intelligence (bug bounty, CERT / ISAC / PSIRT feeds and e-mail) ----
+    Rule("LDS-014", "Researcher-reported flaw already being probed by attackers", "asset",
+         (all_of(d(Domain.BUG_BOUNTY), sev_at_least(Severity.HIGH)),
+          all_of(d(Domain.WAF, Domain.FIREWALL, Domain.SOC, Domain.EDR), ftype(FindingType.DETECTION))),
+         Severity.CRITICAL,
+         "A bug-bounty researcher reported a high/critical flaw on this asset AND perimeter or SOC telemetry shows "
+         "attack traffic against it - the window between private disclosure and exploitation is closing.",
+         "Emergency fix or virtual patch now; ask the researcher to retest; review logs for prior exploitation.",
+         ("T1190",)),
+    Rule("LDS-015", "Sector-targeted vulnerability present in our estate", "key",
+         (all_of(d(Domain.THREAT_INTEL), tag("sector_targeted")),
+          all_of(d(Domain.VMDR, Domain.OT, Domain.CLOUD, Domain.SAST, Domain.DAST), sev_at_least(Severity.MEDIUM))),
+         Severity.CRITICAL,
+         "A national CERT / ISAC / vendor advisory reports this vulnerability being targeted at organisations in our "
+         "sector AND our scanners find it in our estate.",
+         "Treat as emergency change: patch or mitigate per advisory, hunt for the advisory's indicators, report status to the CERT/ISAC.",
+         ("T1190", "T0866")),
+    Rule("LDS-016", "Threat-intelligence indicator sighted in our telemetry", "key",
+         (all_of(d(Domain.THREAT_INTEL), tag("sighted")),
+          all_of(d(Domain.EDR, Domain.WEB_PROXY, Domain.FIREWALL, Domain.EMAIL, Domain.SOC, Domain.OT), ftype(FindingType.DETECTION))),
+         Severity.CRITICAL,
+         "An indicator shared by a trusted intelligence source (CERT, ISAC, vendor, MISP) appears in our own EDR / proxy / "
+         "firewall / e-mail telemetry - possible compromise by a tracked campaign.",
+         "Open an incident, scope affected hosts and users, block the indicators, preserve evidence; assess mandatory reporting.",
+         ("T1071", "T1105")),
 )
 
 
@@ -212,6 +237,11 @@ class CorrelationAgent(BaseAgent):
                         else f"{asset.name} - {asset.business_service}"
                 else:
                     label = entity.split(":", 1)[1] if ":" in entity else entity
+                    if entity.startswith(("cve:", "ioc:")):
+                        where = sorted({assets[f.asset_id].name for f in members.values()
+                                        if f.asset_id in assets and f.domain != Domain.THREAT_INTEL})
+                        if where:
+                            label += " on " + ", ".join(where[:2]) + (f" +{len(where) - 2}" if len(where) > 2 else "")
                 out.append(Correlation(
                     correlation_id=cid, rule_id=rule.rule_id, title=rule.title, narrative=rule.narrative,
                     severity=rule.severity, finding_ids=sorted(members), domains=list(domains), entity=label,

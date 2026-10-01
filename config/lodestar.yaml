@@ -84,6 +84,27 @@ connectors:
              settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
   email:    {enabled: true, adapter: ms_graph_security, product: Microsoft Defender for Office 365,
              settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
+  # External intelligence: national CERT / ISAC / vendor PSIRT feeds and advisory e-mails (several sources, one agent)
+  threat_intel:
+    enabled: true
+    product: CERT / ISAC / PSIRT intelligence
+    sources:
+      - {adapter: taxii, product: National CERT TAXII, settings: {api_root: "${CERT_TAXII_API_ROOT:-}", collection_id: "${CERT_TAXII_COLLECTION:-}", api_token: "${CERT_TAXII_TOKEN:-}", lookback_days: 7}}
+      - {adapter: misp, product: Sector ISAC MISP, settings: {base_url: "${ISAC_MISP_URL:-}", api_key: "${ISAC_MISP_KEY:-}", lookback: 7d}}
+      - {adapter: csaf, product: CISA ICS advisories (CSAF), settings: {path: data/drop/csaf}}      # or urls: [...]
+      - adapter: mailbox
+        product: Advisory mailbox
+        settings:
+          mode: path                       # path (offline .eml) | imap | graph
+          path: data/drop/mail
+          # imap_host: "${ADVISORY_IMAP_HOST:-}"  imap_user: "${ADVISORY_IMAP_USER:-}"  imap_password: "${ADVISORY_IMAP_PASSWORD:-}"
+          # tenant_id / client_id / client_secret / mailbox for mode: graph (Mail.Read + ApplicationAccessPolicy)
+          require_dkim: true
+          senders:
+            - {match: "@ncsc.example", kind: advisory, source: National CERT}
+            - {match: "@isac.example", kind: advisory, source: Sector ISAC}
+            - {match: "psirt@", kind: advisory, source: Vendor PSIRT}
+            - {match: "alerts@mssp.example", kind: alert, source: MSSP}
   # ---- Phase 2 --------------------------------------------------------------
   firewall: {enabled: true, adapter: file_drop, product: Palo Alto Networks NGFW,
              settings: {path: data/drop/firewall, finding_type: misconfiguration,
@@ -94,7 +115,14 @@ connectors:
   pam:      {enabled: true, adapter: file_drop, product: CyberArk PAM, settings: {path: data/drop/pam}}
   cloud:    {enabled: true, adapter: ms_graph_security, product: Microsoft Defender for Cloud,
              settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
-  fraud:    {enabled: true, adapter: webhook, product: Feedzai}     # fraud engine / case manager pushes alerts + KPIs
+  fraud:    {enabled: true, adapter: webhook, product: Feedzai}
+  bug_bounty:                              # HackerOne pull + signed webhooks (/api/ingest/hackerone) + VDP mailbox
+    enabled: true
+    product: HackerOne
+    sources:
+      - {adapter: hackerone, product: HackerOne, settings: {api_identifier: "${H1_API_IDENTIFIER:-}", api_token: "${H1_API_TOKEN:-}", program_handle: "${H1_PROGRAM:-}", response_targets: {first_response_hours: 24, triage_hours: 48, bounty_days: 14}}}
+      - {adapter: webhook, product: HackerOne webhooks}
+      - {adapter: mailbox, product: security@ VDP mailbox, settings: {mode: path, path: data/drop/vdp-mail, senders: [{match: "@hackerone.com", kind: bug_bounty, source: HackerOne}, {match: "@", kind: bug_bounty, source: VDP}]}}     # fraud engine / case manager pushes alerts + KPIs
   # ---- Phase 3 --------------------------------------------------------------
   sast:     {enabled: true, adapter: webhook, product: Checkmarx One}
   dast:     {enabled: true, adapter: webhook, product: Invicti}

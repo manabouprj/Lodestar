@@ -23,7 +23,7 @@ def _finding_row(f, assets_lookup: dict[str, str]) -> dict[str, Any]:
         "owner": f.owner_team, "why": f.why, "remediation": f.remediation,
         "due": f.due_date.date().isoformat() if f.due_date else None,
         "first_seen": f.first_seen.date().isoformat(), "attack_path": bool(f.correlation_ids),
-        "frameworks": f.frameworks[:6],
+        "frameworks": f.frameworks[:6], "tlp": f.tlp,
     }
 
 
@@ -52,6 +52,39 @@ def _fraud(result: PipelineResult, assets: dict[str, str]) -> dict[str, Any] | N
                   for c in result.correlations if Domain.FRAUD in c.domains],
         "items": [_finding_row(f, assets) for f in sorted(items, key=lambda x: -x.score)[:30]],
         "decisions": [d["decision_id"] for d in result.decisions if d["type"] in ("fraud_response", "str_filing")],
+    }
+
+
+def _external(result: PipelineResult, assets: dict[str, str]) -> dict[str, Any]:
+    bb = next((c for c in result.controls if c.domain == Domain.BUG_BOUNTY), None)
+    ti = next((c for c in result.controls if c.domain == Domain.THREAT_INTEL), None)
+    reps = sorted([f for f in result.findings if f.domain == Domain.BUG_BOUNTY and f.status in ACTIVE], key=lambda f: -f.score)
+    intel = sorted([f for f in result.findings if f.domain == Domain.THREAT_INTEL and f.status in ACTIVE], key=lambda f: -f.score)
+    seen, uniq = set(), []
+    for f in intel:                      # fan-out copies (one per asset) shown once with an asset count
+        key = f.evidence.get("advisory_id") or f.title
+        if key in seen:
+            continue
+        seen.add(key)
+        n = sum(1 for g in intel if (g.evidence.get("advisory_id") or g.title) == key)
+        uniq.append({**_finding_row(f, assets), "tlp": f.tlp, "source_kind": f.evidence.get("source_kind"),
+                     "matched_cves": f.evidence.get("matched_cves", []), "matched_iocs": f.evidence.get("matched_iocs", []),
+                     "sectors": f.evidence.get("matched_sectors", []), "assets_affected": n,
+                     "sighted": "sighted" in f.evidence.get("tags", []), "exploited": "exploited" in f.evidence.get("tags", [])})
+    return {
+        "bounty": None if not bb and not reps else {
+            "product": bb.product if bb else "Bug bounty", "kpis": bb.kpis if bb else {}, "status": bb.status if bb else "n/a",
+            "issues": bb.health_issues if bb else [],
+            "reports": [{**_finding_row(f, assets), "state": f.evidence.get("state"), "cwe": f.evidence.get("cwe"),
+                         "unknown_asset": "unknown_asset" in f.evidence.get("tags", []),
+                         "sla_breaches": f.evidence.get("sla_breaches", []), "triaged": "triaged" in f.evidence.get("tags", [])}
+                        for f in reps[:10]],
+            "open": len(reps)},
+        "intel": None if not ti else {
+            "product": ti.product, "kpis": ti.kpis, "status": ti.status, "issues": ti.health_issues,
+            "stats": result.data_quality.get("intel") or {}, "items": uniq[:8],
+            "paths": [{"title": c.title, "entity": c.entity, "rule": c.rule_id, "score": c.score}
+                      for c in result.correlations if Domain.THREAT_INTEL in c.domains or Domain.BUG_BOUNTY in c.domains]},
     }
 
 
@@ -108,6 +141,7 @@ def build_payload(result: PipelineResult, assets: dict[str, str] | None = None) 
         "decisions": result.decisions[:30],
         "chat": precomputed(result),
         "fraud": _fraud(result, assets),
+        "external": _external(result, assets),
         "data_quality": {k: result.data_quality.get(k) for k in ("trust_score", "confidence", "asset_match_rate_pct", "stale_connectors",
                          "mandatory_controls_missing", "duplicates_removed", "today_deferred", "phase", "agent_failures")},
     }

@@ -1,0 +1,9 @@
+{"id": "2950001", "type": "report",
+ "attributes": {"title": "SSRF in partner API", "state": "triaged", "created_at": "2026-09-27T08:00:00.000Z",
+                "triaged_at": "2026-09-28T09:00:00.000Z", "first_program_activity_at": "2026-09-27T10:00:00.000Z",
+                "last_activity_at": "2026-09-29T09:00:00.000Z", "bounty_awarded_at": null},
+ "relationships": {
+   "severity": {"data": {"type": "severity", "attributes": {"rating": "critical", "score": 9.6}}},
+   "weakness": {"data": {"type": "weakness", "attributes": {"name": "Server-Side Request Forgery (SSRF)", "external_id": "cwe-918"}}},
+   "structured_scope": {"data": {"type": "structured-scope", "attributes": {"asset_identifier": "api.example-bank.example", "asset_type": "URL"}}},
+   "reporter": {"data": {"type": "user", "attributes": {"username": "researcher-x"}}}}}

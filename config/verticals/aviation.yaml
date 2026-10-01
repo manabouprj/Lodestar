@@ -19,3 +19,6 @@ kris_extra:
   - {metric: brand_takedown_hours, label: Fake booking site takedown time, appetite: 24, direction: lower_better, unit: " h"}
 crown_jewel_services: [Departure control system, Reservations & loyalty, Crew scheduling, Baggage handling (OT), MRO systems]
 terminology: {ot: Airside / OT systems}
+sectors: [transportation, aviation, aerospace]
+critical_infrastructure: true
+incident_reporting: {authority: Civil aviation authority and national CERT, hours: 24}

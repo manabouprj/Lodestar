@@ -1,0 +1,7 @@
+From: National CERT <advisories@ncsc.example>
+Subject: URGENT critical vulnerability CVE-2024-3400
+Date: Tue, 29 Sep 2026 07:15:00 +0400
+Authentication-Results: mx.your-org.example; dkim=fail; spf=fail
+Content-Type: text/plain
+
+Critical. Click here to update.

@@ -59,7 +59,7 @@ lodestar is the star used to steer by, which is the job of the platform.
 
 ## 4. Verification performed
 
-* `pytest`: 39 passed (v1.1) (scoring, verticals, correlation, pipeline phases, determinism, store, API auth/RBAC, webhook HMAC, reports, guardrail, config secrets, file-drop mapping)
+* `pytest`: 47 passed (v1.2) (scoring, verticals, correlation, pipeline phases, determinism, store, API auth/RBAC, webhook HMAC, reports, guardrail, config secrets, file-drop mapping)
 * `ruff check`: clean
 * `python -m lodestar validate`: ready (demo); FAIL items reported correctly in live mode without keys
 * Live mode with no credentials: pipeline completes, six connector failures isolated and reported, firewall CSV via file drop ingested
@@ -68,16 +68,16 @@ lodestar is the star used to steer by, which is the job of the platform.
 
 | Organisation (fictional) | Industry | Signals | Today | Attack paths | Decisions for people | Posture |
 |---|---|---:|---:|---:|---:|---:|
-| Sandline Bank | Banking | 1,529 | 25 | 17 | 20 | 59.1 |
-| Lumenpay | Fintech | 1,881 | 25 | 15 | 17 | 60.3 |
-| Aerolume Airways | Aviation | 1,824 | 35 | 16 | 17 | 59.5 |
-| Souqara Retail Group | Retail | 1,663 | 28 | 17 | 19 | 64.2 |
-| Petrava Energy | Oil & gas | 1,753 | 25 | 14 | 15 | 60.1 |
-| Helionyx Power & Water | Power & utilities | 1,624 | 25 | 14 | 15 | 60.1 |
-| Corvianet Telecom | Telecom | 1,684 | 25 | 15 | 16 | 63.5 |
-| Portaris Terminals | Ports & logistics | 1,560 | 25 | 17 | 18 | 60.1 |
+| Sandline Bank | Banking | 1,554 | 28 | 20 | 25 | 60.3 |
+| Lumenpay | Fintech | 1,902 | 25 | 18 | 21 | 60.0 |
+| Aerolume Airways | Aviation | 1,861 | 41 | 19 | 22 | 57.4 |
+| Souqara Retail Group | Retail | 1,688 | 32 | 20 | 23 | 63.4 |
+| Petrava Energy | Oil & gas | 1,796 | 25 | 17 | 20 | 63.5 |
+| Helionyx Power & Water | Power & utilities | 1,663 | 30 | 17 | 20 | 58.4 |
+| Corvianet Telecom | Telecom | 1,708 | 25 | 18 | 21 | 63.5 |
+| Portaris Terminals | Ports & logistics | 1,601 | 26 | 20 | 23 | 60.5 |
 
-Aviation's and retail's Today lists exceed 25 because every extra item belong to attack paths, KEV or active
+Where a Today list exceeds 25 (aviation, retail, bank, utility, port), every extra item belong to attack paths, KEV or active
 exploitation; those are never deferred by the capacity cap.
 
 ## 5. Review of v1.1 (decision desk, ChatOps, fraud)
@@ -106,3 +106,26 @@ for financial institutions, was absent.
 | O-12 | Chat-to-role mapping is maintained in YAML | Sync from Entra ID / Slack user groups |
 | O-13 | No native fraud-engine adapter yet (webhook / file drop only) | Feedzai and Actimize adapters |
 | O-14 | Decision playbook deadlines are defaults | Agree with the CISO, MLRO and OT operations during Phase 2 |
+
+## 6. Review of v1.2 (bug bounty, threat-intel feeds, advisory e-mail)
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| PR-24 | High | Researcher reports and CERT / ISAC / PSIRT advisories reached the team only by e-mail and were matched to assets by hand | `BugBountyAgent` (HackerOne API + signed webhooks + VDP mailbox) and `ThreatFeedAgent` (TAXII 2.1, MISP, CSAF 2.0, advisory mailbox) with alias, CVE, product and IOC matching |
+| PR-25 | High | Raw feeds would flood the Today list with advisories irrelevant to the organisation | Relevance filter: keep only items matching our CVEs, product tags, telemetry IOCs, or our sector at high severity. Demo: 20 ingested → 2-4 kept |
+| PR-26 | High | A spoofed "CERT advisory" e-mail could trigger an emergency | Sender allow-list, DKIM/SPF check (unverified capped at medium), no link following, deterministic parsing; prompt-injection text covered by a test |
+| PR-27 | High | TLP-restricted intelligence could leak into chat channels or reports | TLP stored on every finding; TLP:RED titles never leave the dashboard |
+| PR-28 | Medium | Critical-infrastructure operators have legal notification clocks that nobody tracked | `critical_infrastructure` and `incident_reporting` in industry profiles; an IOC sighting raises a regulatory notification decision with the profile deadline |
+| PR-29 | Medium | Researcher proof-of-concept detail is sensitive | Not copied from HackerOne; only title, severity, CWE, asset, state and link |
+| PR-30 | Medium | Mock adapter shared mutable evidence with the generator, so tags were duplicated across runs | Deep copy on load; tags rebuilt immutably |
+| PR-31 | Low | Energy and utility profiles have no internet-facing crown jewel, so demo researcher reports landed on DCS/SCADA | Demo adds a customer/partner portal for those profiles |
+| PR-32 | Low | One connector per domain could not hold several intel sources | Multi-source connectors with per-source failure isolation and merged health (stale feed shown by name) |
+
+**New open items**
+
+| # | Item | Planned |
+|---|---|---|
+| O-15 | HackerOne, TAXII, MISP and CSAF adapters follow published specs but need validation against your tenants and feeds | Phase 1/2 validation |
+| O-16 | `incident_reporting` authorities and hours are placeholders | Confirm with Legal per jurisdiction |
+| O-17 | No Bugcrowd / Intigriti native adapters (use mailbox or webhook) | Roadmap |
+| O-18 | STIX patterns are parsed for common observables only (IP, domain, URL, SHA-256) | Extend parser as feeds require |

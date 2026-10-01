@@ -8,8 +8,8 @@ an earlier one.
 | Phase | Weeks* | Agents switched on | Business outcome |
 |---:|---|---|---|
 | 0 Foundation | 0-2 | Orchestrator, AssetContext, DataQuality | Platform running, CMDB / crown jewels loaded, demo dashboard for stakeholders |
-| 1 See & prioritise | 3-6 | EDR, VMDR, Identity, SOC, Email connectors; ThreatIntel, ControlAssurance, Prioritization; weekly report | Daily Today list and weekly ops report |
-| 2 Attack paths, decisions & chat | 7-10 | Firewall, WAF, Web proxy, ZTNA, PAM, Cloud, **Fraud** connectors; Correlation, Action, **Decision desk**, **Slack/Teams ChatOps** (+ ITSM in dry-run) | Toxic combinations, accountable human decisions, focus brief in chat |
+| 1 See & prioritise | 3-6 | EDR, VMDR, Identity, SOC, Email connectors; **CERT / ISAC / PSIRT feeds and advisory mailbox**; ThreatIntel, ControlAssurance, Prioritization; weekly report | Daily Today list, external advisories matched to our estate, weekly ops report |
+| 2 Attack paths, decisions & chat | 7-10 | Firewall, WAF, Web proxy, ZTNA, PAM, Cloud, **Fraud**, **Bug bounty (HackerOne)** connectors; Correlation, Action, **Decision desk**, **Slack/Teams ChatOps** (+ ITSM in dry-run) | Toxic combinations, accountable human decisions, focus brief in chat |
 | 3 Full coverage | 11-14 | SAST, DAST, Brand, AI security, DLP, OT, Backup connectors; ComplianceMapping; monthly report | Framework readiness, AI and OT risk in one view |
 | 4 Executive & scale | 15-18 | Narrative (optional LLM), quarterly board report, further entities / verticals, ITSM live submission | Board pack, multi-entity roll-out |
 
@@ -33,6 +33,7 @@ an earlier one.
 3. `python -m lodestar validate --phase 1` until `RESULT: ready`.
 4. `docker compose up -d` (API + scheduler every 4 hours).
 5. Optional: `threat_intel.live: true` if egress to `cisa.gov` and `api.first.org` is allowed.
+6. External intelligence: connect the national CERT / ISAC TAXII or MISP, CSAF advisories and the advisory mailbox; add `aliases` and `vendor:`/`product:` tags to the CMDB export so advisories and researcher reports match assets (EXTERNAL_INTEL.md). Critical-infrastructure operators: confirm `incident_reporting` in the industry profile with Legal.
 
 **Exit criteria (2 weeks of running):**
 * data freshness < 24 h on all phase-1 connectors (Control assurance tiles healthy)
@@ -71,4 +72,4 @@ an earlier one.
 ## Rollback
 
 Every phase is a configuration change. Lower `deployment_phase` and restart; data already
-collected is kept. Container images are versioned (`lodestar:1.1.0`).
+collected is kept. Container images are versioned (`lodestar:1.2.0`).

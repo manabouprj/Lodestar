@@ -4,14 +4,15 @@
 
 LODESTAR is a set of cooperating AI agents that read from the security tools you already own.
 From that data it tells your security team what to work on **today, this week and this month**.
-It queues the decisions only a human may take, answers questions in **Slack and Microsoft
-Teams**, and writes the **weekly, monthly and quarterly reports** that business leaders and
-boards actually read.
+It also captures **bug bounty reports (HackerOne)** and **threat-intelligence feeds, advisories and
+e-mails** from CERTs, ISACs and vendors, keeping what touches your assets. It queues the decisions
+only a human may take, answers questions in **Slack and Microsoft Teams**, and writes the
+**weekly, monthly and quarterly reports** that business leaders and boards actually read.
 
 A lodestar is the star navigators steer by. The platform does the same job for a security team.
 
 ```
-1,529 signals from 18 tools ─► 927 open ─► 198 this week ─► 25 today ─► 17 attack paths ─► 20 decisions for people
+1,554 signals from 21 sources ─► 942 open ─► 203 this week ─► 28 today ─► 20 attack paths ─► 25 decisions for people
                                  (Sandline Bank, fictional demo, banking profile)
 ```
 
@@ -21,9 +22,10 @@ A lodestar is the star navigators steer by. The platform does the same job for a
 
 | Outcome | How |
 |---|---|
-| **One priority list instead of 18 consoles** | 19 connector agents normalise EDR, firewall, VMDR, identity, PAM, cloud, ZTNA, web proxy, SOC/SIEM, SAST, DAST, WAF, brand protection, email, AI security, DLP, OT, backup and fraud data into one model |
+| **One priority list instead of 20 consoles** | 21 connector agents normalise EDR, firewall, VMDR, identity, PAM, cloud, ZTNA, web proxy, SOC/SIEM, SAST, DAST, WAF, brand protection, email, AI security, DLP, OT, backup, fraud, bug bounty and threat-intelligence data into one model |
 | **A Today list a team can finish** | Explainable risk score with Today / This week / This month horizons and a capacity cap; every item says *why* it is there |
-| **Attacks that no single tool sees** | 13 correlation rules join signals into attack paths, e.g. a known-exploited bug under live attack on a crown jewel, or lookalike phishing that turns into customer account takeover |
+| **Outside warnings acted on, not lost in inboxes** | HackerOne reports (API + signed webhooks), STIX/TAXII, MISP, CISA ICS / vendor CSAF advisories and CERT/ISAC e-mails are captured, matched to assets by CVE, product and IOC, and turned into priorities and decisions. TLP is enforced, and critical-infrastructure notification deadlines are tracked |
+| **Attacks that no single tool sees** | 16 correlation rules join signals into attack paths, e.g. a known-exploited bug under live attack on a crown jewel, lookalike phishing that turns into customer account takeover, or an ISAC indicator showing up in our own proxy logs |
 | **Clear human accountability** | The Decision desk lists every action that needs a person: who decides, by when, what the agents prepared and what they will not do |
 | **Security in the tools people already use** | Daily focus brief, urgent-decision alerts and two-way chat in Slack and Microsoft Teams |
 | **Cyber and fraud in one view** | Fraud-engine signals joined with brand, identity and WAF signals for banks, fintechs, retailers, telcos and airlines |
@@ -43,13 +45,13 @@ entities and channels changes.
 | **Mid-size organisation** (in-house security team, outsourced or small SOC) | 10-15 tools, too many alerts, monthly management reporting done by hand | Phases 1-3; team queues per owner; Decision desk for change and containment approvals; monthly and quarterly reports generated automatically | One container + scheduler |
 | **Enterprise** (CISO organisation, 24x7 SOC, GRC, fraud) | 18+ tools, several business units, regulators, board scrutiny | All phases; per-team Slack/Teams channels; ITSM hand-off; fraud fusion; framework readiness for audit | Container platform, PostgreSQL store (roadmap), SSO proxy |
 | **Group / multi-entity / MSSP** | Several subsidiaries or clients in different industries | One config per entity with its own industry profile; comparable posture and KRIs across entities | Same image, one config per entity |
-| **Government & critical infrastructure** | Mission-critical operations, OT, strict accountability | Dark operations-centre dashboard with TLP marking; OT and safety-critical decisions reserved to named roles; on-premises, no cloud dependency; LLM off by default | On-premises / air-gapped capable |
+| **Government & critical infrastructure** | Mission-critical operations, OT, CERT/ISAC advisories, strict accountability | Dark operations-centre dashboard with TLP marking; CERT/ISAC/ICS advisories matched to OT assets; mandatory-notification decisions with deadlines; OT and safety-critical decisions reserved to named roles; on-premises, no cloud dependency; LLM off by default | On-premises / air-gapped capable |
 
 ## How a team works with it
 
 | Cadence | Who | Where | What they get |
 |---|---|---|---|
-| Continuously | SOC, on-call | Slack / Teams alert | New decisions that need a human **now** |
+| Continuously | SOC, on-call | Slack / Teams alert | New decisions that need a human **now**, e.g. an ISAC indicator sighted, a researcher report under attack |
 | Every morning | CISO, security leads | Dashboard + daily brief in chat | Posture, decisions due, Today list, broken controls |
 | During the day | Analysts, control owners | Dashboard, `/lodestar` in Slack, `@LODESTAR` in Teams | Team queue, "why is this here?", record decisions |
 | Weekly | Technical leads | Weekly report | Today/This-week lists with owners and due dates, attack paths, decisions waiting, control health |
@@ -79,9 +81,10 @@ clocks. A light theme is available.
 2. **Decision desk:** decisions waiting on people, grouped Now / Today / This week, filterable by decider role.
 3. **Focus queue:** Today, This week and This month, filterable by owner team and control, with "why it's here" and the recommended fix.
 4. **Attack paths:** correlated multi-tool risks with MITRE ATT&CK techniques.
-5. **Ask LODESTAR:** chat with the prioritisation agent. The same answers go to Slack and Teams.
-6. **Fraud & financial crime:** confirmed loss, prevented loss, detection before loss, backlog, channel coverage, cyber-enabled fraud paths.
-7. **KRIs, control assurance, posture trend, team workload, framework readiness, remediation actions.**
+5. **External reports & intelligence:** HackerOne reports (SLA, bounty decisions, assets not in the CMDB) and CERT/ISAC/PSIRT advisories shown as *ingested → relevant → sighted*, with TLP labels.
+6. **Ask LODESTAR:** chat with the prioritisation agent. The same answers go to Slack and Teams.
+7. **Fraud & financial crime:** confirmed loss, prevented loss, detection before loss, backlog, channel coverage, cyber-enabled fraud paths.
+8. **KRIs, control assurance, posture trend, team workload, framework readiness, remediation actions.**
 
 ## Architecture
 
@@ -91,7 +94,11 @@ flowchart LR
     EDR & VMDR & IDP[Identity] & SOC[SIEM/SOC] & MAIL[Email] & FW[Firewall] & WAF & SWG[Web proxy]
     ZTNA & PAM & CLOUD[CNAPP] & SAST & DAST & BRAND[Brand] & AI[AI security] & DLP & OT & BKP[Backup] & FRAUD[Fraud engine]
   end
-  Tools -->|API / file drop / signed webhook| CA[19 connector agents]
+  subgraph Ext[External reports & intelligence]
+    H1[HackerOne] & TAXII[CERT / ISAC TAXII] & MISP & CSAF[CISA ICS / PSIRT CSAF] & MAILBOX[Advisory mailbox]
+  end
+  Tools -->|API / file drop / signed webhook| CA[21 connector agents]
+  Ext -->|API / webhook / feeds / e-mail| CA
   CA --> AC[Asset context] --> DQ[Data quality] --> TI[Threat intel] --> CTL[Control assurance]
   CTL --> COR[Correlation] --> PRI[Prioritisation] --> CMP[Compliance] --> ACT[Action drafts] --> DEC[Decision desk]
   PRI --> ST[(Store)]
@@ -103,7 +110,7 @@ flowchart LR
   VP[[Industry profile YAML]] -.-> PRI & CMP & REP & DEC
 ```
 
-32 agents: 19 connector agents and 13 core agents. Details are in
+34 agents: 21 connector agents and 13 core agents. Details are in
 [docs/AGENT_CATALOG.md](docs/AGENT_CATALOG.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Quick start
@@ -151,10 +158,12 @@ every agent. It writes reports to `reports/` and an offline dashboard to
 | EDR, VMDR, Identity, SOC/SIEM, Email | CrowdStrike, Defender, SentinelOne · Qualys, Tenable, Rapid7 · Entra ID, Okta · Sentinel, Splunk, QRadar · Defender for O365, Mimecast, Proofpoint | 1 |
 | Firewall, WAF, Web proxy, ZTNA, PAM, Cloud, **Fraud** | Palo Alto, Fortinet, Check Point · Cloudflare, Akamai, F5 · Zscaler, Netskope · CyberArk, BeyondTrust, Delinea · Wiz, Defender for Cloud, Prisma · Feedzai, Actimize, SAS, FICO, BioCatch | 2 |
 | SAST, DAST, Brand, AI security, DLP, OT, Backup | Checkmarx, Veracode, Snyk · Invicti, Burp · Recorded Future, ZeroFox · Purview AI, Lakera, Prompt Security · Purview DLP, Forcepoint · Claroty, Nozomi, Dragos · Rubrik, Cohesity, Veeam | 3 |
+| Threat intelligence & advisories | National CERT / ISAC TAXII 2.1, MISP, CISA ICS & vendor PSIRT CSAF 2.0, advisory mailbox (IMAP / Microsoft Graph / .eml) | 1 |
+| Bug bounty / VDP | HackerOne (API + signed webhooks), security@ mailbox | 2 |
 | Chat & ticketing | Slack, Microsoft Teams · ServiceNow, Jira | 2 |
 
 There are three ways to connect any product: the **native adapters** (Microsoft Graph Security,
-Entra ID Protection, Tenable), a **file drop** of CSV/JSON exports with a field map (no code), or a
+Entra ID Protection, Tenable, HackerOne, TAXII, MISP, CSAF, mailbox), a **file drop** of CSV/JSON exports with a field map (no code), or a
 **signed webhook** from the product or SOAR. See [docs/CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md).
 
 ## Phased rollout
@@ -162,8 +171,8 @@ Entra ID Protection, Tenable), a **file drop** of CSV/JSON exports with a field 
 | Phase | Weeks* | Adds | Value delivered |
 |---:|---|---|---|
 | 0 | 0-2 | Platform, CMDB / crown jewels, demo | Stakeholder buy-in |
-| 1 | 3-6 | EDR, VMDR, Identity, SOC, Email; scoring; weekly report | Daily Today list |
-| 2 | 7-10 | Firewall, WAF, Proxy, ZTNA, PAM, Cloud, Fraud; correlation; Decision desk; Slack/Teams | Attack paths, accountable decisions, chat |
+| 1 | 3-6 | EDR, VMDR, Identity, SOC, Email; CERT/ISAC/PSIRT feeds and advisory mailbox; scoring; weekly report | Daily Today list, advisories matched to our estate |
+| 2 | 7-10 | Firewall, WAF, Proxy, ZTNA, PAM, Cloud, Fraud, HackerOne; correlation; Decision desk; Slack/Teams | Attack paths, accountable decisions, chat |
 | 3 | 11-14 | SAST, DAST, Brand, AI, DLP, OT, Backup; compliance mapping; monthly report | Full coverage, framework readiness |
 | 4 | 15-18 | Board report, optional LLM narrative, more entities, live ITSM | Executive and group scale |
 
@@ -189,7 +198,8 @@ See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 
 ```
 lodestar/
-  agents/connectors/   19 connector agents + adapters (mock, file_drop, webhook, Graph Security, Entra, Tenable)
+  agents/connectors/   21 connector agents + adapters (mock, file_drop, webhook, Graph Security, Entra, Tenable,
+                       HackerOne, TAXII/STIX, MISP, CSAF, mailbox)
   agents/core/         asset context, data quality, threat intel, control assurance, correlation,
                        prioritisation, compliance, action, decision desk, narrative
   chatops/             chat engine, Slack, Microsoft Teams, notifier
@@ -201,7 +211,7 @@ lodestar/
 config/                platform config, industry profiles, framework mappings
 docs/                  architecture, scoring, phases, human-in-the-loop, ChatOps, fraud, security, peer review, demo script
 samples/               dashboard and reports generated from the demo data
-tests/                 39 tests
+tests/                 47 tests (with STIX, CSAF, HackerOne and e-mail fixtures)
 ```
 
 ## Security
@@ -219,6 +229,8 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 | [HUMAN_IN_THE_LOOP.md](docs/HUMAN_IN_THE_LOOP.md) | Decision desk, decision types, guard-rails |
 | [CHATOPS.md](docs/CHATOPS.md) | Slack and Teams setup, roles in chat |
 | [FRAUD_MANAGEMENT.md](docs/FRAUD_MANAGEMENT.md) | Cyber-enabled fraud for financial institutions |
+| [EXTERNAL_INTEL.md](docs/EXTERNAL_INTEL.md) | Bug bounty, CERT/ISAC/PSIRT feeds, advisory e-mail, TLP, critical-infrastructure notification |
+| [GITHUB_SETUP.md](docs/GITHUB_SETUP.md) | Pushing the repository to GitHub from Windows |
 | [SCORING_MODEL.md](docs/SCORING_MODEL.md) | How priorities are calculated |
 | [DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md) | Rollout plan and exit criteria |
 | [CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md) | Connecting products |
@@ -228,8 +240,8 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 1.1.0. Planned next: native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz,
-Cloudflare and Feedzai; a PostgreSQL store for multi-entity HA; in-app OIDC; and a full Teams bot
+Version 1.2.0. Planned next: native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz,
+Cloudflare, Feedzai and Bugcrowd; a PostgreSQL store for multi-entity HA; in-app OIDC; and a full Teams bot
 with card actions. Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md).
 
 All demo organisations, people, hosts and `*.example` domains are fictional. CVE identifiers are

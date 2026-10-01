@@ -18,7 +18,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .agents.connectors.domains import SPECS
 from .agents.core.narrative import summarise
 from .metrics import kri_table
-from .models import Horizon, PipelineResult, Status
+from .models import Horizon, PipelineResult, Status, safe_title
 from .verticals import load_vertical
 
 TEMPLATES = Path(__file__).resolve().parent / "web" / "templates"
@@ -158,6 +158,11 @@ def build_context(result: PipelineResult, period: str, llm_cfg: dict | None = No
         "actions": result.actions[:15], "data_quality": result.data_quality, "trend": trend,
         "decisions_pending": [d for d in result.decisions if d.get("status", "pending") == "pending"],
         "fraud": next((c for c in result.controls if c.domain.value == "fraud"), None),
+        "bounty_open": sorted([f for f in act if f.domain.value == "bug_bounty"], key=lambda f: -f.score),
+        "intel_relevant": sorted({(f.evidence.get("advisory_id") or f.title): f for f in act if f.domain.value == "threat_intel"}.values(),
+                                 key=lambda f: -f.score),
+        "intel_stats": result.data_quality.get("intel") or {},
+        "safe_title": safe_title,
         "threats": v.threat_landscape, "crown_jewels": v.crown_jewel_services,
     }
 

@@ -58,6 +58,17 @@ Open attack paths: **{{ exposure.range }}** (risk-weighted). {{ exposure.method 
 {% endfor %}
 {% endif %}
 
+{% if bounty_open or intel_relevant %}
+## External reports & intelligence
+
+- Bug bounty: {{ bounty_open|length }} open researcher report(s)
+{% for f in bounty_open[:5] %}  - [{{ f.severity.value }}] {{ safe_title(f) }}
+{% endfor %}
+- Threat intelligence: {{ intel_stats.advisories_ingested|default(0) }} ingested, {{ intel_stats.advisories_relevant|default(0) }} relevant, {{ intel_stats.ioc_sightings|default(0) }} sighted
+{% for f in intel_relevant[:5] %}  - {% if f.tlp %}TLP:{{ f.tlp|upper }} {% endif %}{{ safe_title(f) }} ({{ f.source }})
+{% endfor %}
+{% endif %}
+
 ## Control effectiveness
 
 | Control | Product | Coverage | Effectiveness | Status |

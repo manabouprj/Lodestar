@@ -39,6 +39,8 @@ class Domain(str, Enum):
     OT = "ot"
     BACKUP = "backup"
     FRAUD = "fraud"
+    BUG_BOUNTY = "bug_bounty"
+    THREAT_INTEL = "threat_intel"
 
 
 class Severity(str, Enum):
@@ -108,7 +110,8 @@ class Asset(BaseModel):
     owner: Optional[str] = None
     criticality: int = Field(3, ge=1, le=5)  # 5 = crown jewel
     exposure: Exposure = Exposure.INTERNAL
-    tags: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)          # e.g. vendor:siemens, product:s7-1500, sector:energy
+    aliases: list[str] = Field(default_factory=list)       # hostnames, FQDNs, URLs, IPs used by external reports
     data_classification: str = "internal"   # public, internal, confidential, restricted
 
 
@@ -146,6 +149,12 @@ class Finding(BaseModel):
     score_factors: dict[str, float] = Field(default_factory=dict)
     why: list[str] = Field(default_factory=list)
     owner_team: Optional[str] = None
+    tlp: Optional[str] = None           # clear | green | amber | amber+strict | red (from intel sources)
+
+
+def safe_title(f: "Finding") -> str:
+    """Title safe to send outside the dashboard (chat, e-mail, reports): TLP:RED content never leaves."""
+    return "[TLP:RED item - open the dashboard]" if (f.tlp or "").lower() == "red" else f.title
 
 
 class ControlHealth(BaseModel):
@@ -157,7 +166,7 @@ class ControlHealth(BaseModel):
     data_freshness_hours: float = 0.0
     policy_drift_items: int = 0
     health_issues: list[str] = Field(default_factory=list)
-    kpis: dict[str, float] = Field(default_factory=dict)
+    kpis: dict[str, Any] = Field(default_factory=dict)
     effectiveness: float = 0.0                         # 0-100, computed
     status: str = "unknown"                            # healthy, degraded, failing, stale
 

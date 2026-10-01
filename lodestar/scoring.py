@@ -51,7 +51,7 @@ DOMAIN_OWNER = {
     "sast": "Application Security", "dast": "Application Security", "waf": "Application Security",
     "brand": "Threat Intelligence", "email": "Messaging Security", "ai_security": "AI Governance",
     "dlp": "Data Protection", "ot": "OT Security", "backup": "Infrastructure / Resilience",
-    "fraud": "Fraud Operations",
+    "fraud": "Fraud Operations", "bug_bounty": "Application Security", "threat_intel": "Threat Intelligence",
 }
 
 
@@ -105,6 +105,9 @@ def score_finding(
         why.append(f"{f.cve or 'Vulnerability'} is on the CISA Known Exploited Vulnerabilities list")
     elif f.epss >= 0.3:
         why.append(f"High exploit probability (EPSS {f.epss:.0%})")
+    if f.evidence.get("sector_exploited"):
+        e = max(e, 0.9)
+        why.append(f"Exploitation against peers reported by {f.evidence['sector_exploited']}")
     if f.actively_exploited_in_env:
         e = 1.0
         why.append("Active exploitation / threat activity observed in our environment")
@@ -112,7 +115,10 @@ def score_finding(
     # Asset criticality & exposure
     crit = asset.criticality if asset else 3
     a = 0.2 + 0.8 * (crit - 1) / 4
-    exposure = asset.exposure if asset else Exposure.INTERNAL
+    # researcher reports are, by definition, reachable from the internet
+    exposure = asset.exposure if asset else (Exposure.INTERNET if f.domain.value == "bug_bounty" else Exposure.INTERNAL)
+    if not asset and "unknown_asset" in f.evidence.get("tags", []):
+        why.append("Reported asset is not in the CMDB (possible shadow IT)")
     x = EXPOSURE_WEIGHT[exposure]
     if asset and crit >= 5:
         why.append(f"Crown-jewel asset ({asset.business_service or asset.name})")

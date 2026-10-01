@@ -19,3 +19,6 @@ kris_extra:
   - {metric: brand_takedown_hours, label: Fake store takedown time, appetite: 48, direction: lower_better, unit: " h"}
   - {metric: waf_block_mode_pct, label: Web apps with WAF in blocking mode, appetite: 100, direction: higher_better, unit: "%"}
 crown_jewel_services: [E-commerce platform, POS estate, Loyalty platform, Supply chain & warehouse management]
+sectors: [retail]
+critical_infrastructure: false
+incident_reporting: {authority: Data protection authority (if personal data), hours: 72}

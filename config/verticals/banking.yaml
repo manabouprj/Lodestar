@@ -22,3 +22,6 @@ kris_extra:
   - {metric: brand_takedown_hours,          label: Phishing site takedown time,     appetite: 24, direction: lower_better, unit: " h"}
   - {metric: internet_facing_critical_count, label: Internet-facing critical exposures, appetite: 0, direction: lower_better, unit: ""}
 crown_jewel_services: [Core banking, SWIFT gateway, Cards & payments switch, Internet & mobile banking]
+sectors: [financial-services]
+critical_infrastructure: true
+incident_reporting: {authority: Central bank and national CERT, hours: 4}

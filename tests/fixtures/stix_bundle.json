@@ -1,0 +1,9 @@
+{"type": "bundle", "id": "bundle--1", "objects": [
+ {"type": "identity", "id": "identity--sector", "name": "Energy sector", "identity_class": "class", "sectors": ["energy", "utilities"]},
+ {"type": "indicator", "id": "indicator--1", "pattern": "[domain-name:value = 'update-sync-cdn.example']", "pattern_type": "stix", "valid_from": "2026-09-28T00:00:00Z"},
+ {"type": "vulnerability", "id": "vulnerability--1", "name": "CVE-2024-21762"},
+ {"type": "report", "id": "report--1", "name": "Campaign against energy operators", "published": "2026-09-29T00:00:00Z",
+  "description": "Actors are exploiting CVE-2024-21762 in the wild.", "labels": ["exploited"],
+  "object_refs": ["indicator--1", "vulnerability--1"],
+  "object_marking_refs": ["marking-definition--f88d31f6-486f-44da-b317-01333bde0b82"]},
+ {"type": "relationship", "id": "relationship--1", "relationship_type": "targets", "source_ref": "report--1", "target_ref": "identity--sector"}]}

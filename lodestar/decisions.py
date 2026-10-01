@@ -14,7 +14,7 @@ from .models import PipelineResult
 from .store import Store
 
 ROLE_RANK = {"exec": 1, "analyst": 2, "ciso": 3}
-CISO_ONLY = {"risk_acceptance", "safety_critical", "breach_assessment", "str_filing"}
+CISO_ONLY = {"risk_acceptance", "safety_critical", "breach_assessment", "str_filing", "regulatory_notification"}
 # Note: in production map MLRO / Head of Fraud to the `ciso` (decision-authority) role or add roles in ROLE_RANK.
 
 

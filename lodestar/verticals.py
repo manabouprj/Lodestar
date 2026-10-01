@@ -33,6 +33,9 @@ class VerticalProfile:
     kris: list[dict[str, Any]]
     crown_jewel_services: list[str]
     terminology: dict[str, str] = field(default_factory=dict)
+    sectors: list[str] = field(default_factory=list)          # STIX industry-sector vocabulary, for intel matching
+    critical_infrastructure: bool = False
+    incident_reporting: dict[str, Any] = field(default_factory=dict)  # authority, hours
 
     def weight(self, domain: Domain | str) -> float:
         key = domain.value if isinstance(domain, Domain) else domain
@@ -97,6 +100,9 @@ def load_vertical(vertical_id: str, directory: str | None = None) -> VerticalPro
         kris=raw.get("kris", []),
         crown_jewel_services=raw.get("crown_jewel_services", []),
         terminology=raw.get("terminology") or {},
+        sectors=[s.lower() for s in raw.get("sectors", [])],
+        critical_infrastructure=bool(raw.get("critical_infrastructure", False)),
+        incident_reporting=raw.get("incident_reporting") or {},
     )
 
 

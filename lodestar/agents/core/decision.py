@@ -134,6 +134,31 @@ PLAYBOOKS: dict[str, dict] = {
         "will_not": ["Change login flows or WAF/bot policy"],
         "if_none": "Automated account takeover continues on the customer channel.",
     },
+    "LDS-014": {
+        "type": "emergency_change", "title": "Approve emergency fix / virtual patch for researcher-reported flaw on {entity}",
+        "deciders": ["Application Security lead", "Product / service owner"], "deadline_h": 8,
+        "options": ["Hot-fix now and virtual patch meanwhile", "Virtual patch only, fix next release", "Take endpoint offline", "Reject"],
+        "prepared": ["Researcher report reference (no exploit detail copied)", "Attack-traffic evidence", "WAF rule draft", "Retest request draft"],
+        "will_not": ["Deploy code or change WAF policy", "Message the researcher or award a bounty"],
+        "if_none": "A privately disclosed flaw is exploited before it is fixed.",
+    },
+    "LDS-015": {
+        "type": "emergency_change", "title": "Approve emergency patch window for sector-targeted vulnerability on {entity}",
+        "deciders": ["CISO", "Head of IT / OT Operations"], "deadline_h": 8,
+        "options": ["Emergency patch / mitigation per advisory", "Apply advisory workaround, patch in next window", "Isolate affected systems", "Reject"],
+        "prepared": ["Advisory summary and source", "List of affected assets in our estate", "Hunt queries for advisory indicators",
+                     "Status update draft for CERT / ISAC"],
+        "will_not": ["Patch, reboot or isolate IT or OT systems", "Reply to the CERT / ISAC"],
+        "if_none": "A vulnerability being actively used against our sector stays open in our environment.",
+    },
+    "LDS-016": {
+        "type": "incident_declaration", "title": "Confirm compromise and invoke incident response: indicator sighted on {entity}",
+        "deciders": ["SOC lead", "CISO"], "deadline_h": 2,
+        "options": ["Declare incident and contain", "Investigate further (4h)", "Close as false positive"],
+        "prepared": ["Indicator source and confidence", "Sightings across EDR / proxy / firewall / e-mail", "Scoping and containment runbook"],
+        "will_not": ["Block indicators on security controls", "Isolate hosts", "Notify authorities or partners"],
+        "if_none": "A tracked threat actor may be operating in the network unopposed.",
+    },
 }
 
 ROLE_FOR_DOMAIN = {"fraud": "Head of Fraud", "edr": "Endpoint Security lead", "vmdr": "Infrastructure lead", "identity": "Identity & Access lead",
@@ -254,7 +279,56 @@ class DecisionAgent(BaseAgent):
                         round((now - (f.first_seen if f.first_seen.tzinfo else f.first_seen.replace(tzinfo=timezone.utc))).total_seconds() / 3600, 1),
                 })
 
-        # 5. active high-severity detections still open today -> confirm incident
+        # 5. bug bounty programme: severity / bounty decisions and response-SLA breaches
+        bounty = [f for f in state.findings if f.domain == Domain.BUG_BOUNTY and f.status in (Status.OPEN, Status.IN_PROGRESS)]
+        pending = [f for f in bounty if "bounty_pending" in f.evidence.get("tags", [])]
+        late = [f for f in bounty if f.evidence.get("sla_breaches")]
+        if pending or late:
+            did = _id("bounty", *sorted(f.finding_id for f in pending + late))
+            due = raised.get(did, now) + timedelta(hours=72)
+            hours_left = (due - now).total_seconds() / 3600
+            out.append({
+                "decision_id": did, "type": "bounty_programme", "source": "BugBountyAgent",
+                "title": f"Agree severity and bounty for {len(pending)} triaged report(s); clear {len(late)} response-SLA breach(es)",
+                "why_now": "Researchers expect timely responses and fair bounties; slow programmes lose researchers and "
+                           "push them to public disclosure.",
+                "deciders": ["Bug bounty programme owner", "Application Security lead"], "deadline_hours": 72,
+                "due_at": due.isoformat(), "hours_left": round(hours_left, 1), "urgency": _urgency(hours_left), "score": 50.0,
+                "options": ["Approve severities and bounties as proposed", "Adjust severities, then award", "Escalate to CISO"],
+                "prepared": ["Report list with severity, weakness (CWE) and asset", "Bounty table recommendation", "Response templates"],
+                "will_not": ["Award bounties or change report severity", "Close, disclose or reply to reports"],
+                "if_no_decision": "Response targets are missed and the programme's reputation with researchers suffers.",
+                "regulatory": False,
+                "evidence": [{"id": f.finding_id, "title": f.title, "domain": "bug_bounty"} for f in (pending + late)[:5]],
+                "action_id": None, "status": "pending", "signal_age_hours": 0.0,
+            })
+
+        # 6. critical infrastructure: mandatory incident notification when an intel indicator is sighted
+        if ctx.vertical.critical_infrastructure:
+            ir = ctx.vertical.incident_reporting or {}
+            for c in state.correlations:
+                if c.rule_id != "LDS-016":
+                    continue
+                did = _id("notify", c.correlation_id)
+                hrs = float(ir.get("hours", 24))
+                due = raised.get(did, now) + timedelta(hours=hrs)
+                hours_left = (due - now).total_seconds() / 3600
+                out.append({
+                    "decision_id": did, "type": "regulatory_notification", "source": "DecisionAgent",
+                    "title": f"Decide on mandatory incident notification to {ir.get('authority', 'the national CERT')}",
+                    "why_now": f"{ctx.vertical.name} is designated critical infrastructure. An intelligence indicator was sighted "
+                               f"({c.entity}); if the incident is confirmed, the notification clock is typically {hrs:.0f}h.",
+                    "deciders": ["CISO", "Legal / Compliance", "Executive sponsor"], "deadline_hours": hrs,
+                    "due_at": due.isoformat(), "hours_left": round(hours_left, 1), "urgency": _urgency(hours_left), "score": c.score,
+                    "options": ["Notify now (early warning)", "Notify once incident is confirmed", "Not reportable (document rationale)"],
+                    "prepared": ["Timeline of the sighting", "Draft early-warning notification", "Affected services and impact summary"],
+                    "will_not": ["Contact any authority, regulator or partner"],
+                    "if_no_decision": "A legal reporting deadline for critical infrastructure may be missed.",
+                    "regulatory": True, "evidence": [{"id": i, "title": "", "domain": ""} for i in c.finding_ids[:3]],
+                    "action_id": None, "status": "pending", "signal_age_hours": 0.0,
+                })
+
+        # 7. active high-severity detections still open today -> confirm incident
         active = [f for f in state.findings if f.horizon == Horizon.TODAY and not f.correlation_ids
                   and f.finding_type in (FindingType.DETECTION, FindingType.INCIDENT)
                   and f.severity in (Severity.CRITICAL, Severity.HIGH) and f.domain in (Domain.SOC, Domain.EDR, Domain.IDENTITY)]

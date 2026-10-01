@@ -14,6 +14,7 @@ class MockAdapter(Adapter):
         block = (ctx.dataset.get("domains") or {}).get(self.domain.value)
         if not block:
             return AdapterResult(warnings=[f"no demo data for {self.domain.value}"])
-        findings = [Finding.model_validate(f) for f in block.get("findings", [])]
+        import copy
+        findings = [Finding.model_validate(copy.deepcopy(f)) for f in block.get("findings", [])]
         health = ControlHealth.model_validate(block["health"]) if block.get("health") else None
         return AdapterResult(findings=findings, health=health)
