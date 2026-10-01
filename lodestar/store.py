@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS webhook (domain TEXT, finding_id TEXT, received_at TE
     PRIMARY KEY (domain, finding_id));
 CREATE TABLE IF NOT EXISTS decisions (org TEXT, decision_id TEXT, first_raised TEXT, status TEXT DEFAULT 'pending',
     choice TEXT, role TEXT, note TEXT, decided_at TEXT, PRIMARY KEY (org, decision_id));
+CREATE TABLE IF NOT EXISTS webhook_health (domain TEXT PRIMARY KEY, received_at TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, actor TEXT, event TEXT, details TEXT);
 """
 
@@ -105,6 +106,21 @@ class Store:
                 c.execute("INSERT OR REPLACE INTO webhook (domain, finding_id, received_at, data) VALUES (?,?,?,?)",
                           (domain, it["finding_id"], now, json.dumps(it, default=str)))
         return len(items)
+
+    def set_webhook_health(self, domain: str, health: dict[str, Any] | None) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._conn() as c:
+            row = c.execute("SELECT data FROM webhook_health WHERE domain=?", (domain,)).fetchone()
+            data = json.loads(row[0]) if row and row[0] else {}
+            if health:
+                data.update(health)
+            c.execute("INSERT OR REPLACE INTO webhook_health (domain, received_at, data) VALUES (?,?,?)",
+                      (domain, now, json.dumps(data, default=str)))
+
+    def webhook_health(self, domain: str) -> tuple[datetime | None, dict[str, Any]]:
+        with self._conn() as c:
+            row = c.execute("SELECT received_at, data FROM webhook_health WHERE domain=?", (domain,)).fetchone()
+        return (datetime.fromisoformat(row[0]), json.loads(row[1] or "{}")) if row else (None, {})
 
     def webhook_findings(self, domain: str, retention_days: int = 30) -> list[dict[str, Any]]:
         since = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()

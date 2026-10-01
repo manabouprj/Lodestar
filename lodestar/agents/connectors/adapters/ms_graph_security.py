@@ -79,6 +79,7 @@ class MsGraphSecurityAdapter(Adapter):
                 url, params = data.get("@odata.nextLink"), None
         fresh = (datetime.now(timezone.utc) - newest).total_seconds() / 3600 if newest else 0.0
         health = ControlHealth(domain=self.domain, product=self.product or "Microsoft Defender XDR",
-                               coverage_pct=float(self.settings.get("coverage_pct", 0)),
-                               data_freshness_hours=round(fresh, 1))
+                               coverage_pct=float(self.settings.get("coverage_pct") or 100.0),
+                               data_freshness_hours=round(fresh, 1),
+                               health_issues=[] if self.settings.get("coverage_pct") else ["Coverage not reported - set settings.coverage_pct from the console"])
         return AdapterResult(findings=findings, health=health)

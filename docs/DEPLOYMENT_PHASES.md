@@ -1,5 +1,7 @@
 # Phased deployment
 
+> How to configure and test each agent is in [AGENT_SETUP.md](AGENT_SETUP.md). This page covers sequencing and exit criteria.
+
 Each phase is independently useful, has a go-live gate (`python -m lodestar validate --phase N`)
 and measurable exit criteria. Phases are set with `deployment_phase` in `config/lodestar.yaml`;
 agents above the configured phase do not run, so a half-configured later phase cannot break
@@ -72,4 +74,4 @@ an earlier one.
 ## Rollback
 
 Every phase is a configuration change. Lower `deployment_phase` and restart; data already
-collected is kept. Container images are versioned (`lodestar:1.2.1`).
+collected is kept. Container images are versioned (`lodestar:1.3.0`).

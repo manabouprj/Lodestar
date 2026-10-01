@@ -1,5 +1,7 @@
 # Connector guide
 
+> Step-by-step product setup (permissions, credentials, field maps, testing) is in [AGENT_SETUP.md](AGENT_SETUP.md). This page explains the three integration mechanisms and how to write a native adapter.
+
 There are three ways to bring a product into LODESTAR. Pick the lightest one that works.
 
 ## 1. File drop (no code)

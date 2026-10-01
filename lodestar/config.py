@@ -78,7 +78,29 @@ class Settings:
         return p if p.is_absolute() else ROOT / p
 
 
+def load_dotenv(path: Path | None = None) -> int:
+    """Load KEY=VALUE pairs from .env (repo root) without overriding variables already set.
+    Lets Windows / local runs use the same .env file as docker compose. Returns number loaded."""
+    p = path or (ROOT / ".env")
+    if os.environ.get("LODESTAR_NO_DOTENV") or not p.exists():
+        return 0
+    n = 0
+    for line in p.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key, val = key.strip().removeprefix("export ").strip(), val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+            val = val[1:-1]
+        if key and key not in os.environ and val != "":
+            os.environ[key] = val
+            n += 1
+    return n
+
+
 def load_settings(path: str | Path | None = None, overrides: dict[str, Any] | None = None) -> Settings:
+    load_dotenv()
     cfg_path = Path(path or os.environ.get("LODESTAR_CONFIG", ROOT / "config" / "lodestar.yaml"))
     if not cfg_path.is_absolute():
         cfg_path = ROOT / cfg_path

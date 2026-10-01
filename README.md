@@ -173,6 +173,28 @@ python -m lodestar chat                       # interactive
 every agent. It writes reports to `reports/` and an offline dashboard to
 `dist/lodestar-dashboard.html` for presentations. Ready-made copies are in [`samples/`](samples/).
 
+## Setting up the agents and integrating your tools
+
+The full runbook is **[docs/AGENT_SETUP.md](docs/AGENT_SETUP.md)**. In short:
+
+| Step | What you do | Check |
+|---|---|---|
+| 1. Platform | `Copy-Item .env.example .env`; set API keys and webhook secret; in `config/lodestar.yaml` set `org.name`, `org.vertical`, `mode: live`, `deployment_phase: 1` | `python -m lodestar validate --phase 1` |
+| 2. Asset context | Export the CMDB / crown-jewel register to `config/assets.csv` (criticality 1-5, exposure, `aliases`, `vendor:`/`product:` tags) | CMDB match rate ≥ 90 % |
+| 3. Connector agents, one at a time | Credentials in `.env` → connector block in `config/lodestar.yaml` (native adapter, file drop with `field_map`, or signed webhook) | `python -m lodestar test-connector <domain>` |
+| 4. Core agents | Decision-desk RACI, scoring and Today capacity, ITSM (dry-run), Slack/Teams, threat-intel refresh | `python -m lodestar run --phase N` |
+| 5. Go live | `docker compose up -d`, or two Windows scheduled tasks (API + scheduler) | Dashboard → Control assurance all healthy |
+
+```powershell
+python -m lodestar test-connector edr --show 10      # run one agent against the real product, nothing stored
+powershell -ExecutionPolicy Bypass -File scripts\send-test-webhook.ps1 -Domain waf -File samples\webhooks\waf_findings.json
+```
+
+Per-product guidance covers: the Microsoft Entra app registration (Defender XDR, Sentinel, Entra
+ID Protection, Mail.Read scoped to one mailbox), Tenable API keys, HackerOne tokens and webhooks,
+TAXII/MISP/CSAF feeds, and file-drop field maps for CrowdStrike, Palo Alto, Cloudflare, Zscaler,
+CyberArk, Wiz, Checkmarx, Invicti, Recorded Future, Purview DLP, Claroty, Rubrik and fraud engines.
+
 ## Integrations
 
 | Control | Example products | Phase |
@@ -213,6 +235,7 @@ See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 | `python -m lodestar notify --channel slack\|teams\|stdout` | Push the focus brief now |
 | `python -m lodestar report --period weekly\|monthly\|quarterly\|all` | Write reports (HTML, Markdown, JSON) |
 | `python -m lodestar validate [--phase N]` | Config, secrets and readiness checks |
+| `python -m lodestar test-connector <domain>` | Run one connector agent against the real product and show what it collected (nothing stored) |
 | `python -m lodestar export-dashboard` | Offline dashboard file |
 | `python -m lodestar agents` | Agent catalogue |
 
@@ -233,7 +256,7 @@ lodestar/
 config/                platform config, industry profiles, framework mappings
 docs/                  architecture, scoring, phases, human-in-the-loop, ChatOps, fraud, security, peer review, demo script
 samples/               dashboard and reports generated from the demo data
-tests/                 47 tests (with STIX, CSAF, HackerOne and e-mail fixtures)
+tests/                 50 tests (with STIX, CSAF, HackerOne and e-mail fixtures)
 ```
 
 ## Security
@@ -248,6 +271,7 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 | Document | For |
 |---|---|
+| [AGENT_SETUP.md](docs/AGENT_SETUP.md) | **Start here for real deployments:** step-by-step agent setup and product integration |
 | [HUMAN_IN_THE_LOOP.md](docs/HUMAN_IN_THE_LOOP.md) | Decision desk, decision types, guard-rails |
 | [CHATOPS.md](docs/CHATOPS.md) | Slack and Teams setup, roles in chat |
 | [FRAUD_MANAGEMENT.md](docs/FRAUD_MANAGEMENT.md) | Cyber-enabled fraud for financial institutions |
@@ -262,7 +286,7 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 1.2.1. Planned next: native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz,
+Version 1.3.0. Planned next: native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz,
 Cloudflare, Feedzai and Bugcrowd; a PostgreSQL store for multi-entity HA; in-app OIDC; and a full Teams bot
 with card actions. Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md).
 

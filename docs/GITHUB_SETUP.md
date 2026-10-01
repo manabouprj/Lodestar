@@ -5,6 +5,7 @@ inside. You only need to unpack it, point it at a GitHub repository and push.
 
 * **First time?** Follow steps 1 to 5.
 * **Already pushed an earlier version?** Go to [Update an existing GitHub repository](#update-an-existing-github-repository).
+* **Ready to connect real tools?** After pushing, follow [AGENT_SETUP.md](AGENT_SETUP.md).
 * **Want the dashboard visible on GitHub?** Go to [Show the dashboard on GitHub](#show-the-dashboard-on-github).
 
 ## 1. One-time tools
@@ -22,12 +23,12 @@ Close and reopen PowerShell so the new commands are on your PATH. Check with `gi
 ## 2. Unpack the download
 
 ```powershell
-$zip = "$env:USERPROFILE\Downloads\lodestar-v1.2.1.zip"
+$zip = "$env:USERPROFILE\Downloads\lodestar-v1.3.0.zip"
 Unblock-File $zip                                   # removes the "downloaded from internet" flag so scripts run
 New-Item -ItemType Directory -Force C:\Projects | Out-Null
 Expand-Archive $zip -DestinationPath C:\Projects -Force
 cd C:\Projects\lodestar
-git log --oneline                                   # you should see the LODESTAR v1.0.0 ... v1.2.1 commits
+git log --oneline                                   # you should see the LODESTAR v1.0.0 ... v1.3.0 commits
 ```
 
 Use a short path outside OneDrive (for example `C:\Projects`) to avoid sync conflicts and
@@ -66,11 +67,11 @@ needs to be pasted.
 * **Code** tab: README renders with the architecture diagram.
 * **Actions** tab: the `ci` workflow runs lint, 47 tests, `validate`, the demo build and a Docker
   build/smoke test. Download the `demo-dashboard-and-reports` artifact from the run.
-* **Releases**: optionally create a release from tag `v1.2.1` and attach `samples/lodestar-dashboard.html`.
+* **Releases**: optionally create a release from tag `v1.3.0` and attach `samples/lodestar-dashboard.html`.
 
 ## Update an existing GitHub repository
 
-If you already pushed v1.2.0 (or earlier), the new download contains the same history plus the
+If you already pushed an earlier version, the new download contains the same history plus the
 new commit, so the push is a simple fast-forward.
 
 **Option A - keep your existing folder** (recommended if you have local changes):
@@ -78,7 +79,7 @@ new commit, so the push is a simple fast-forward.
 ```powershell
 cd C:\Projects\lodestar                             # your existing clone
 git status                                         # commit or stash anything you changed first
-Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.2.1.zip" -DestinationPath C:\Temp\lodestar-new -Force
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.3.0.zip" -DestinationPath C:\Temp\lodestar-new -Force
 git fetch C:\Temp\lodestar-new\lodestar main --tags     # bring in the new commit from the unpacked copy
 git merge --ff-only FETCH_HEAD
 git push origin main --tags
@@ -88,7 +89,7 @@ git push origin main --tags
 
 ```powershell
 Rename-Item C:\Projects\lodestar lodestar-old
-Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.2.1.zip" -DestinationPath C:\Projects -Force
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.3.0.zip" -DestinationPath C:\Projects -Force
 cd C:\Projects\lodestar
 git remote add origin https://github.com/manabouprj/lodestar.git
 git push origin main --tags

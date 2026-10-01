@@ -10,6 +10,7 @@
   python -m lodestar chat ["what needs attention now"]   # talk to the prioritisation agent (same engine as Slack/Teams)
   python -m lodestar notify [--channel slack|teams|stdout]  # push the focus brief
   python -m lodestar validate             # config, secrets and phase-readiness checks
+  python -m lodestar test-connector edr      # integrate one product at a time: run it alone and inspect the result
   python -m lodestar agents               # print the agent catalogue
 """
 from __future__ import annotations
@@ -281,6 +282,67 @@ def cmd_validate(args) -> int:
     return 0 if ok else 1
 
 
+def cmd_test_connector(args) -> int:
+    """Run ONE connector agent (plus asset context and data quality) and print what it collected.
+    Nothing is stored. Use it while integrating a product: credentials, field maps, asset matching."""
+    from .agents.base import AgentContext, PipelineState
+    from .agents.connectors import build_connector_agents
+    from .agents.core import AssetContextAgent, DataQualityAgent
+    from .models import Domain
+    from .orchestrator import load_dataset
+    from .verticals import load_vertical
+    try:
+        domain = Domain(args.domain)
+    except ValueError:
+        print(f"Unknown domain '{args.domain}'. Choose from: {', '.join(d.value for d in Domain)}", file=sys.stderr)
+        return 2
+    s = _settings(args, deployment_phase=4)
+    agents = [a for a in build_connector_agents(s, 4) if a.spec.domain == domain]
+    if not agents:
+        print(f"Connector '{domain.value}' is not enabled in {s.raw.get('_path', 'config')}. Add it under connectors:.", file=sys.stderr)
+        return 2
+    dataset = load_dataset(s.demo_dataset) if s.mode == "demo" else None
+    from .store import Store
+    ctx = AgentContext(settings=s, vertical=load_vertical(dataset.get("vertical") if dataset else s.vertical),
+                       now=datetime.now(timezone.utc), dataset=dataset, store=Store(s.sqlite_path))
+    st = PipelineState()
+    for agent in (AssetContextAgent(), agents[0], DataQualityAgent()):
+        st = agent(ctx, st)
+    failed = [e for e in ctx.audit if e["event"] == "failed"]
+    dq = st.data_quality.get("connectors", {}).get(domain.value, {})
+    print(f"Connector : {agents[0].name} ({domain.value}) via {dq.get('adapter', ', '.join(a.name for a in agents[0].adapters))}  [mode={s.mode}]")
+    if failed:
+        print(f"RESULT    : FAILED - {failed[0].get('error')}")
+        return 1
+    if domain.value in (st.data_quality.get("not_integrated") or []):
+        print("RESULT    : no data returned (check the adapter settings, drop folder or webhook sender)")
+        return 1
+    h = next((c for c in st.controls if c.domain == domain), None)
+    found = [f for f in st.findings if f.domain == domain]
+    unmatched = sorted({f.asset_id for f in found if f.asset_id and f.asset_id not in st.assets})
+    print(f"Findings  : {len(found)} collected; by severity " +
+          ", ".join(f"{k}={sum(1 for f in found if f.severity.value == k)}" for k in ("critical", "high", "medium", "low", "info")))
+    if h:
+        print(f"Health    : product='{h.product}' coverage={h.coverage_pct}% freshness={h.data_freshness_hours}h issues={h.health_issues or 'none'}")
+        if h.kpis:
+            print("KPIs      : " + ", ".join(f"{k}={v}" for k, v in list(h.kpis.items())[:10]))
+    matched = sum(1 for f in found if f.asset_id in st.assets)
+    no_asset = sum(1 for f in found if not f.asset_id)
+    print(f"Assets    : {matched} matched to CMDB, {len(found) - matched - no_asset} unmatched, {no_asset} user/advisory-level"
+          + (f" (unmatched e.g. {', '.join(unmatched[:5])} - add them or their aliases to the CMDB export)" if unmatched else ""))
+    if domain == Domain.THREAT_INTEL:
+        print("Note      : relevance filtering (our CVEs / products / IOC sightings / sector) runs in the full pipeline (`lodestar run`)")
+    for w in (dq.get("warnings") or [])[:5] + (dq.get("source_failures") or [])[:5]:
+        print(f"Warning   : {w}")
+    for f in found[: args.show]:
+        print(f"  - [{f.severity.value:8s}] {f.title[:90]}  asset={f.asset_id or '-'} user={f.user_id or '-'}")
+    if not found:
+        print("RESULT    : CONNECTED, NO FINDINGS YET - check the drop folder / webhook sender / lookback window")
+        return 0
+    print("RESULT    : OK")
+    return 0
+
+
 def cmd_agents(args) -> int:
     from .catalog import agent_catalog
     for a in agent_catalog():
@@ -312,5 +374,8 @@ def main(argv=None) -> int:
     sc.add_argument("--once", action="store_true"); sc.set_defaults(fn=cmd_schedule, phase=None, dataset=None)
     v = sub.add_parser("validate"); v.add_argument("--phase", type=int); v.set_defaults(fn=cmd_validate, dataset=None)
     a = sub.add_parser("agents"); a.set_defaults(fn=cmd_agents)
+    tc = sub.add_parser("test-connector", help="run one connector agent and show what it collects (nothing stored)")
+    tc.add_argument("domain"); tc.add_argument("--show", type=int, default=5); tc.add_argument("--dataset")
+    tc.set_defaults(fn=cmd_test_connector, phase=None)
     args = p.parse_args(argv)
     return args.fn(args)

@@ -1,0 +1,14 @@
+{
+  "findings": [
+    {"finding_id": "waf-demo-001", "source": "Cloudflare WAF", "finding_type": "detection",
+     "title": "SQL injection attempts against /api/v2/login (1,240 in 1h)", "severity": "high",
+     "asset_id": "portal.your-org.example", "first_seen": "2026-10-01T05:00:00Z",
+     "evidence": {"requests": 1240, "rule": "OWASP CRS 942100"},
+     "remediation": "Confirm blocking mode; review the login endpoint for injection."},
+    {"finding_id": "waf-demo-002", "source": "Cloudflare WAF", "finding_type": "misconfiguration",
+     "title": "Managed ruleset in log-only mode for marketing zone", "severity": "medium",
+     "asset_id": "www.your-org.example"}
+  ],
+  "health": {"coverage_pct": 92, "policy_drift_items": 1,
+             "kpis": {"apps_protected_pct": 92, "block_mode_pct": 85, "attacks_blocked": 18200}}
+}

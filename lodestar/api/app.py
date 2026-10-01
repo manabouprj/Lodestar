@@ -403,11 +403,15 @@ async def ingest(domain: Domain, request: Request):
         data = json.loads(body)
     except json.JSONDecodeError as exc:
         raise HTTPException(400, "Body must be JSON") from exc
-    items = data if isinstance(data, list) else data.get("findings", [data])
+    health = data.get("health") if isinstance(data, dict) else None
+    items = data if isinstance(data, list) else data.get("findings", [] if health else [data])
     if not all(isinstance(i, dict) and i.get("finding_id") for i in items):
         raise HTTPException(422, "Every item needs a finding_id")
+    if health is not None and not isinstance(health, dict):
+        raise HTTPException(422, "health must be an object")
     for i in items:
         i["domain"] = domain.value
-    n = get_store().upsert_webhook(domain.value, items)
+    n = get_store().upsert_webhook(domain.value, items) if items else 0
+    get_store().set_webhook_health(domain.value, health)
     get_store().audit("webhook", "ingest", {"domain": domain.value, "items": n})
     return JSONResponse({"accepted": n}, status_code=202)

@@ -75,7 +75,7 @@ chatops:
 connectors:
   # ---- Phase 1 --------------------------------------------------------------
   edr:      {enabled: true, adapter: ms_graph_security, product: Microsoft Defender for Endpoint,
-             settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}", coverage_pct: 0}}
+             settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}   # add coverage_pct: <console %>
   vmdr:     {enabled: true, adapter: tenable_vm, product: Tenable Vulnerability Management,
              settings: {access_key: "${TENABLE_ACCESS_KEY:-}", secret_key: "${TENABLE_SECRET_KEY:-}"}}
   identity: {enabled: true, adapter: entra_identity_protection, product: Microsoft Entra ID,

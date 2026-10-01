@@ -47,7 +47,8 @@ class TenableVmAdapter(Adapter):
             else:
                 warnings.append("Tenable export did not finish within max_wait_seconds; partial data used")
         health = ControlHealth(domain=Domain.VMDR, product="Tenable Vulnerability Management",
-                               coverage_pct=float(self.settings.get("coverage_pct", 0)), data_freshness_hours=0.0)
+                               coverage_pct=float(self.settings.get("coverage_pct") or 100.0), data_freshness_hours=0.0,
+                               health_issues=[] if self.settings.get("coverage_pct") else ["Coverage not reported - set settings.coverage_pct from the console"])
         return AdapterResult(findings=findings, health=health, warnings=warnings)
 
     def _map(self, v: dict) -> Finding:
