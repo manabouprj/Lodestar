@@ -1,0 +1,42 @@
+# docker compose up -d            -> API + dashboard on http://localhost:8080 and scheduler
+# First run in demo mode:  docker compose run --rm api python -m lodestar demo
+services:
+  api:
+    build: .
+    image: lodestar:1.0.0
+    env_file: .env
+    environment:
+      LODESTAR_CONFIG: /app/config/lodestar.yaml
+    ports: ["127.0.0.1:8080:8080"]      # bind to localhost; publish via your reverse proxy / SSO gateway
+    volumes:
+      - lodestar-data:/app/data
+      - lodestar-reports:/app/reports
+      - ./config:/app/config:ro
+      - ./data/drop:/app/data/drop:ro
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  scheduler:
+    image: lodestar:1.0.0
+    depends_on: [api]
+    env_file: .env
+    environment:
+      LODESTAR_CONFIG: /app/config/lodestar.yaml
+    command: ["python", "-m", "lodestar", "schedule", "--interval-hours", "4"]
+    volumes:
+      - lodestar-data:/app/data
+      - lodestar-reports:/app/reports
+      - ./config:/app/config:ro
+      - ./data/drop:/app/data/drop:ro
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+volumes:
+  lodestar-data:
+  lodestar-reports:

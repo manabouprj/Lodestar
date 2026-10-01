@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ org }} · {{ title }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single A4-width document column, print-first. Tokens shared with the LODESTAR dashboard. */
+:root{
+  --ink:#14213a; --ink-2:#4a5670; --ink-3:#7a849a; --paper:#ffffff; --wash:#f3f5f9; --rule:#d9dee8;
+  --brass:#8a5d12; --good:#0b7a0b; --warn:#9a6700; --crit:#b42828;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"IBM Plex Sans","Segoe UI",Arial,sans-serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--wash);color:var(--ink);font:14px/1.55 var(--body)}
+.doc{max-width:900px;margin:24px auto;background:var(--paper);padding:48px 56px;border:1px solid var(--rule)}
+header.top{display:flex;justify-content:space-between;gap:24px;border-bottom:3px solid var(--ink);padding-bottom:16px;flex-wrap:wrap}
+.eyebrow{font:600 12px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+h1{font:700 34px/1.05 var(--display);margin:6px 0 4px;letter-spacing:.01em;text-wrap:balance}
+h2{font:600 21px/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;margin:36px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--rule)}
+.meta{color:var(--ink-2);font-size:13px}
+.class{font:600 11px/1 var(--mono);letter-spacing:.1em;border:1px solid var(--crit);color:var(--crit);padding:5px 8px;align-self:flex-start}
+.summary{display:grid;grid-template-columns:200px 1fr;gap:28px;margin-top:24px;align-items:start}
+.score{border:1px solid var(--rule);padding:16px;text-align:center}
+.score .n{font:700 64px/1 var(--display);font-variant-numeric:tabular-nums}
+.score .of{color:var(--ink-3);font-size:13px}
+.delta{font:500 13px var(--mono)}
+.up{color:var(--good)} .down{color:var(--crit)}
+.lead{font-size:16px;line-height:1.6;margin:0;max-width:65ch}
+.engine{font:400 11px var(--mono);color:var(--ink-3);margin-top:8px}
+ol.decisions{margin:0;padding-left:20px} ol.decisions li{margin:6px 0;font-weight:500}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font:600 12px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);text-align:left;border-bottom:2px solid var(--ink);padding:6px 8px}
+td{border-bottom:1px solid var(--rule);padding:7px 8px;vertical-align:top}
+td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);white-space:nowrap}
+.chip{display:inline-block;font:600 11px/1 var(--mono);padding:3px 6px;border:1px solid currentColor;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.within,.on_track,.healthy{color:var(--good)} .near,.attention,.degraded{color:var(--warn)} .breach,.at_risk,.failing,.stale{color:var(--crit)}
+.sev-critical{color:var(--crit)} .sev-high{color:#b45309} .sev-medium{color:var(--warn)} .sev-low{color:var(--ink-3)}
+.path{border-left:4px solid var(--crit);padding:8px 14px;margin:10px 0;background:var(--wash)}
+.path b{font-family:var(--display);font-size:17px;letter-spacing:.02em}
+.small{font-size:12px;color:var(--ink-2)}
+.chart text{font:11px var(--mono);fill:var(--ink-3)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.wrap{overflow-x:auto}
+footer{margin-top:40px;border-top:1px solid var(--rule);padding-top:12px;font-size:11px;color:var(--ink-3)}
+@media (max-width:700px){.doc{padding:24px 16px;margin:0}.summary,.grid2{grid-template-columns:1fr}}
+@media print{body{background:#fff}.doc{border:0;margin:0;padding:0;max-width:none}h2{break-after:avoid}.path,tr{break-inside:avoid}}
+</style>
+</head>
+<body>
+<article class="doc">
+<header class="top">
+  <div>
+    <div class="eyebrow">LODESTAR · {{ vertical.name }}</div>
+    <h1>{{ title }}</h1>
+    <div class="meta">{{ org }} · {{ from_date }} to {{ to_date }} · Prepared for {{ audience }}</div>
+  </div>
+  <div class="class">CONFIDENTIAL</div>
+</header>
+
+<section class="summary">
+  <div class="score">
+    <div class="eyebrow">Security posture</div>
+    <div class="n">{{ posture|round(0)|int }}</div>
+    <div class="of">out of 100 · appetite {{ appetite }}</div>
+    <div class="delta {{ 'up' if posture_delta >= 0 else 'down' }}">{{ posture_delta|signed }} vs {{ from_date }}</div>
+  </div>
+  <div>
+    <div class="eyebrow">Executive summary</div>
+    <p class="lead">{{ summary }}</p>
+    <div class="engine">Narrative engine: {{ summary_engine }}{% if summary_engine == 'llm' %} (numbers verified against source data){% endif %}</div>
+  </div>
+</section>
+
+<svg class="chart" viewBox="0 0 {{ chart.w }} {{ chart.h }}" width="100%" role="img" aria-label="Posture score trend from {{ chart.first_date }} to {{ chart.last_date }}">
+  {% for t, y in chart.ticks %}<line x1="{{ chart.pad }}" x2="{{ chart.w - chart.pad }}" y1="{{ y }}" y2="{{ y }}" stroke="#d9dee8" stroke-width="1"/><text x="2" y="{{ y + 4 }}">{{ t }}</text>{% endfor %}
+  <polyline points="{{ chart.points }}" fill="none" stroke="#14213a" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="{{ chart.last[0] }}" cy="{{ chart.last[1] }}" r="4" fill="#8a5d12"/>
+  <text x="{{ chart.pad }}" y="{{ chart.h - 6 }}">{{ chart.first_date }}</text>
+  <text x="{{ chart.w - chart.pad }}" y="{{ chart.h - 6 }}" text-anchor="end">{{ chart.last_date }}</text>
+</svg>
+
+{% if period != 'weekly' and decisions %}
+<h2>Decisions requested</h2>
+<ol class="decisions">{% for d in decisions %}<li>{{ d }}</li>{% endfor %}</ol>
+{% endif %}
+
+<h2>Key risk indicators vs appetite</h2>
+<div class="wrap"><table>
+<thead><tr><th>Indicator</th><th class="num">Now</th><th class="num">Appetite</th><th class="num">Change</th><th>Trend</th><th>Status</th></tr></thead>
+<tbody>
+{% for k in kris %}<tr><td>{{ k.label }}</td><td class="num">{{ k.value|fmt(k.unit) }}</td><td class="num">{{ '≥' if k.direction == 'higher_better' else '≤' }} {{ k.appetite|fmt(k.unit) }}</td>
+<td class="num">{{ k.delta|signed }}</td><td>{{ k.trend }}</td><td><span class="chip {{ k.status }}">{{ k.status|replace('_',' ') }}</span></td></tr>
+{% endfor %}
+</tbody></table></div>
+
+<h2>Attack paths requiring action ({{ attack_paths|length }})</h2>
+{% for c in attack_paths %}
+<div class="path"><b>{{ c.title }}</b> <span class="chip sev-{{ c.severity.value }}">{{ c.severity.value }}</span> <span class="small">score {{ c.score }}</span>
+<div class="small">{{ c.entity }} · controls: {{ c.domains|map(attribute='value')|join(', ') }}{% if c.mitre %} · MITRE {{ c.mitre|join(', ') }}{% endif %}</div>
+<div>{{ c.narrative }}</div><div><b style="font-size:13px">Action:</b> {{ c.recommended_action }}</div></div>
+{% else %}<p>No correlated attack paths open.</p>{% endfor %}
+
+{% if period != 'weekly' and exposure.rows %}
+<h2>Indicative financial exposure</h2>
+<p>Open attack paths represent an estimated <b>{{ exposure.range }}</b> of risk-weighted loss exposure.</p>
+<div class="wrap"><table><thead><tr><th>Attack path</th><th>Business area</th><th class="num">Likelihood</th><th class="num">Low</th><th class="num">High</th></tr></thead><tbody>
+{% for r in exposure.rows %}<tr><td>{{ r.title }}</td><td>{{ r.entity }}</td><td class="num">{{ r.likelihood_pct }}%</td><td class="num">{{ r.low }}</td><td class="num">{{ r.high }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="small">{{ exposure.method }}</p>
+{% endif %}
+
+{% if period == 'weekly' %}
+<h2>Today: {{ counts.today }} priority items</h2>
+<p class="small">Distilled from {{ "{:,}".format(counts.signals) }} signals ({{ "{:,}".format(counts.open) }} open) across all integrated controls. SLA breaches: {{ sla_breaches }} (was {{ sla_breaches_prev }}). New this week: {{ new_total }} · closed: {{ closed_total }}.</p>
+<div class="wrap"><table><thead><tr><th class="num">Score</th><th>Finding</th><th>Control</th><th>Owner</th><th>Due</th></tr></thead><tbody>
+{% for f in today %}<tr><td class="num">{{ f.score }}</td><td><span class="chip sev-{{ f.severity.value }}">{{ f.severity.value }}</span> {{ f.title }}<div class="small">{{ f.why[:2]|join(' · ') }}</div></td><td>{{ specs[f.domain].title }}</td><td>{{ f.owner_team }}</td><td class="num">{{ f.due_date.date() if f.due_date else '' }}</td></tr>{% endfor %}
+</tbody></table></div>
+<h2>This week: {{ counts.week }} items (top 15)</h2>
+<div class="wrap"><table><thead><tr><th class="num">Score</th><th>Finding</th><th>Owner</th><th>Due</th></tr></thead><tbody>
+{% for f in week %}<tr><td class="num">{{ f.score }}</td><td>{{ f.title }}</td><td>{{ f.owner_team }}</td><td class="num">{{ f.due_date.date() if f.due_date else '' }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+<h2>{% if period == 'quarterly' %}Weakest controls{% else %}Control effectiveness{% endif %}</h2>
+<div class="wrap"><table><thead><tr><th>Control</th><th>Product</th><th class="num">Coverage</th><th class="num">Effectiveness</th><th>Status</th><th>Issues</th></tr></thead><tbody>
+{% for c in (weakest_controls if period == 'quarterly' else controls) %}<tr><td>{{ specs[c.domain].title }}</td><td>{{ c.product }}</td><td class="num">{{ c.coverage_pct|fmt('%') }}</td><td class="num">{{ c.effectiveness|fmt }}</td><td><span class="chip {{ c.status }}">{{ c.status }}</span></td><td class="small">{{ c.health_issues|join('; ') }}</td></tr>{% endfor %}
+</tbody></table></div>
+
+{% if period != 'weekly' and compliance %}
+<h2>Regulatory &amp; framework readiness</h2>
+<div class="wrap"><table><thead><tr><th>Framework</th><th class="num">Controls mapped</th><th class="num">At risk</th><th class="num">Attention</th><th class="num">Readiness</th></tr></thead><tbody>
+{% for k, c in compliance.items() %}<tr><td>{{ c.name }}</td><td class="num">{{ c.controls_mapped }}</td><td class="num">{{ c.at_risk }}</td><td class="num">{{ c.attention }}</td><td class="num">{{ c.readiness_pct|fmt('%') }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="small">Applicable frameworks for {{ vertical.name }}: {{ vertical.frameworks|join(' · ') }}</p>
+{% endif %}
+
+{% if period == 'quarterly' %}
+<div class="grid2">
+<div><h2>Threat landscape</h2><ul>{% for t in threats %}<li>{{ t }}</li>{% endfor %}</ul></div>
+<div><h2>Crown-jewel services</h2><ul>{% for c in crown_jewels %}<li>{{ c }}</li>{% endfor %}</ul></div>
+</div>
+{% endif %}
+
+<footer>
+Generated by LODESTAR on {{ generated }} · data trust score {{ data_quality.trust_score }} / 100 · CMDB match {{ data_quality.asset_match_rate_pct }}%{% if data_quality.stale_connectors %} · stale feeds: {{ data_quality.stale_connectors|join(', ') }}{% endif %}.
+Scores use the explainable LODESTAR Risk Score (docs/SCORING_MODEL.md).
+</footer>
+</article>
+</body>
+</html>

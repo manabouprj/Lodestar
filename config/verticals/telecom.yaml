@@ -1,0 +1,18 @@
+id: telecom
+inherits: _default
+name: Telecommunications
+description: Mobile, fixed and enterprise network operators.
+frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, GSMA FS.31 Baseline Security Controls, 3GPP SCAS / GSMA NESAS, TDRA regulatory framework]
+regulators: [Telecoms regulator]
+mandatory_domains: [edr, vmdr, identity, pam, soc, firewall, cloud, brand, email, waf]
+domain_weights: {pam: 1.25, firewall: 1.2, identity: 1.15, cloud: 1.15, brand: 1.1}
+sla_days: {critical: 10, high: 30, medium: 60, low: 120}
+financial_exposure: {currency: USD, downtime_cost_per_hour: 1000000, cost_per_record: 170, regulatory_fine_ceiling: 12000000}
+threat_landscape:
+  - SIM-swap and subscriber account takeover
+  - Signalling (SS7/Diameter) abuse
+  - Intrusion into core network via managed-service providers
+  - Smishing campaigns using operator brand
+kris_extra:
+  - {metric: internet_facing_critical_count, label: Internet-facing critical exposures, appetite: 0, direction: lower_better, unit: ""}
+crown_jewel_services: [Mobile core (5GC/EPC), OSS/BSS, Subscriber database (HSS/UDM), Customer self-care]

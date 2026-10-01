@@ -1,0 +1,20 @@
+id: banking
+inherits: _default
+name: Banking
+description: Retail, corporate and investment banks.
+frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, PCI DSS v4.0.1, SWIFT CSCF v2026, CBUAE Information Security Regulation, SAMA CSF, EU DORA]
+regulators: [Central bank, Payment card brands, SWIFT]
+mandatory_domains: [edr, vmdr, identity, pam, soc, email, waf, brand, dlp, cloud]
+domain_weights: {identity: 1.2, pam: 1.3, brand: 1.2, waf: 1.15, dlp: 1.15, email: 1.1}
+sla_days: {critical: 7, high: 15, medium: 30, low: 90}
+financial_exposure: {currency: USD, downtime_cost_per_hour: 1200000, cost_per_record: 240, regulatory_fine_ceiling: 25000000}
+threat_landscape:
+  - Payment fraud and SWIFT messaging abuse
+  - Customer account takeover via phishing / lookalike domains
+  - Ransomware against core banking
+  - Insider data exfiltration
+  - Third-party / fintech API abuse
+kris_extra:
+  - {metric: brand_takedown_hours,          label: Phishing site takedown time,     appetite: 24, direction: lower_better, unit: " h"}
+  - {metric: internet_facing_critical_count, label: Internet-facing critical exposures, appetite: 0, direction: lower_better, unit: ""}
+crown_jewel_services: [Core banking, SWIFT gateway, Cards & payments switch, Internet & mobile banking]

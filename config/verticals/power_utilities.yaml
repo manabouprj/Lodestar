@@ -1,0 +1,20 @@
+id: power_utilities
+inherits: _default
+name: Power & Utilities
+description: Generation, transmission, distribution and water utilities.
+frameworks: [NIST CSF 2.0, NERC CIP, IEC 62443, IEC 62351, ISO/IEC 27019, UAE IA Standards]
+regulators: [Electricity regulator, National critical-infrastructure authority]
+mandatory_domains: [ot, edr, vmdr, identity, pam, soc, firewall, ztna, backup]
+domain_weights: {ot: 1.45, pam: 1.25, firewall: 1.2, ztna: 1.15, backup: 1.2, waf: 0.85, brand: 0.8}
+sla_days: {critical: 14, high: 35, medium: 90, low: 180}
+financial_exposure: {currency: USD, downtime_cost_per_hour: 1500000, cost_per_record: 140, regulatory_fine_ceiling: 15000000}
+threat_landscape:
+  - Grid disruption via SCADA / EMS compromise
+  - Smart-meter and AMI head-end abuse
+  - Ransomware on billing and customer systems
+  - Insider and contractor misuse of engineering access
+kris_extra:
+  - {metric: ot_unmanaged_remote_access_count, label: Unmanaged remote access to SCADA, appetite: 0, direction: lower_better, unit: ""}
+  - {metric: backup_immutability_pct, label: Critical systems with immutable backups, appetite: 100, direction: higher_better, unit: "%"}
+crown_jewel_services: [Energy management system (EMS/SCADA), Substation automation, AMI head-end, Customer billing]
+terminology: {ot: SCADA / grid OT}

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+data/*.db
+data/*.db-*
+data/intel/
+data/drop/**/*
+!data/drop/**/.gitkeep
+dist/
+reports/
+data/demo/

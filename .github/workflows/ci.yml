@@ -1,0 +1,32 @@
+name: ci
+on:
+  push: {branches: [main]}
+  pull_request:
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy: {matrix: {python: ["3.11", "3.12"]}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}", cache: pip}
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check lodestar tests
+      - run: pytest -q
+      - run: python -m lodestar validate
+      - run: python -m lodestar demo --as-of 2026-10-01T02:00:00
+      - uses: actions/upload-artifact@v4
+        if: matrix.python == '3.12'
+        with: {name: demo-dashboard-and-reports, path: "dist/\nreports/"}
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t lodestar:ci .
+      - name: smoke test container
+        run: |
+          docker run -d --name l -p 8080:8080 lodestar:ci
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8080/healthz && break; sleep 2; done
+          docker exec l python -m lodestar validate

@@ -1,0 +1,4 @@
+rule_issue,risk,device,detected
+Any-any allow rule on DMZ policy,4,fw-dmz-01,2026-09-12T08:00:00Z
+Rule allows SMB from user VLAN to data centre,4,fw-core-02,2026-09-20T08:00:00Z
+Unused rule (no hits in 180 days),2,fw-core-02,2026-07-01T08:00:00Z

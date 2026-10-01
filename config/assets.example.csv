@@ -1,0 +1,3 @@
+asset_id,name,asset_type,business_service,owner,criticality,exposure,data_classification,tags
+example-core-db-01,Core platform database,server,Core platform,platform-team@your-org.example,5,internal,restricted,crown_jewel;pci
+example-portal-01,Customer portal,app,Customer portal,digital-team@your-org.example,5,internet,confidential,crown_jewel

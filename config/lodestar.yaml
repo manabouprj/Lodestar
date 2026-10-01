@@ -1,0 +1,89 @@
+# ---------------------------------------------------------------------------
+# LODESTAR platform configuration
+# Secrets: NEVER put literal secrets here - use ${ENV_VAR} references.
+# ---------------------------------------------------------------------------
+org:
+  name: Your Organisation
+  vertical: banking            # aviation | banking | fintech | retail | energy | power_utilities | telecom | logistics_ports
+  timezone: Asia/Dubai
+
+mode: demo                     # demo = synthetic data via mock adapters | live = real connectors
+deployment_phase: 4            # 0..4 - agents above this phase are not run (see docs/DEPLOYMENT_PHASES.md)
+
+demo:
+  dataset: data/demo/banking.json
+
+storage:
+  sqlite_path: data/lodestar.db
+
+assets:
+  path: config/assets.example.csv   # CMDB / crown-jewel export (merged with demo assets in demo mode)
+
+reporting:
+  output_dir: reports
+
+scoring:                        # weights must sum to 1.0
+  w_severity: 0.30
+  w_exploit: 0.25
+  w_asset: 0.20
+  w_exposure: 0.15
+  w_time: 0.10
+  today: 75
+  week: 55
+  month: 35
+  vertical_weight_strength: 0.6   # how strongly industry weights shift scores (0-1)
+  today_capacity: 25              # max non-urgent items on the Today list (attack paths/KEV/active exploitation always shown)
+
+threat_intel:
+  live: false                   # true = refresh CISA KEV + FIRST EPSS daily (needs egress to cisa.gov / api.first.org)
+  cache_dir: data/intel
+
+llm:
+  provider: none                # none | anthropic  (needs ANTHROPIC_API_KEY env)
+  model: claude-sonnet-4-5
+  max_tokens: 400
+
+itsm:
+  provider: none                # none | servicenow | jira
+  dry_run: true                 # drafts only - human approval required in the dashboard/API
+  base_url: ${ITSM_BASE_URL:-}
+  username: ${ITSM_USERNAME:-}
+  api_token: ${ITSM_API_TOKEN:-}
+  project_key: SEC              # jira project / servicenow assignment group prefix
+
+# One entry per control domain. adapter: mock | file_drop | webhook | ms_graph_security | entra_identity_protection | tenable_vm
+connectors:
+  # ---- Phase 1 --------------------------------------------------------------
+  edr:      {enabled: true, adapter: ms_graph_security, product: Microsoft Defender for Endpoint,
+             settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}", coverage_pct: 0}}
+  vmdr:     {enabled: true, adapter: tenable_vm, product: Tenable Vulnerability Management,
+             settings: {access_key: "${TENABLE_ACCESS_KEY:-}", secret_key: "${TENABLE_SECRET_KEY:-}"}}
+  identity: {enabled: true, adapter: entra_identity_protection, product: Microsoft Entra ID,
+             settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
+  soc:      {enabled: true, adapter: ms_graph_security, product: Microsoft Sentinel,
+             settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
+  email:    {enabled: true, adapter: ms_graph_security, product: Microsoft Defender for Office 365,
+             settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
+  # ---- Phase 2 --------------------------------------------------------------
+  firewall: {enabled: true, adapter: file_drop, product: Palo Alto Networks NGFW,
+             settings: {path: data/drop/firewall, finding_type: misconfiguration,
+                        field_map: {title: rule_issue, severity: risk, asset_id: device, first_seen: detected}}}
+  waf:      {enabled: true, adapter: webhook, product: Cloudflare WAF}
+  web_proxy: {enabled: true, adapter: file_drop, product: Zscaler Internet Access, settings: {path: data/drop/web_proxy}}
+  ztna:     {enabled: true, adapter: file_drop, product: Zscaler Private Access, settings: {path: data/drop/ztna}}
+  pam:      {enabled: true, adapter: file_drop, product: CyberArk PAM, settings: {path: data/drop/pam}}
+  cloud:    {enabled: true, adapter: ms_graph_security, product: Microsoft Defender for Cloud,
+             settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
+  # ---- Phase 3 --------------------------------------------------------------
+  sast:     {enabled: true, adapter: webhook, product: Checkmarx One}
+  dast:     {enabled: true, adapter: webhook, product: Invicti}
+  brand:    {enabled: true, adapter: file_drop, product: Recorded Future, settings: {path: data/drop/brand, finding_type: exposure}}
+  ai_security: {enabled: true, adapter: webhook, product: Prompt Security}
+  dlp:      {enabled: true, adapter: file_drop, product: Microsoft Purview DLP, settings: {path: data/drop/dlp, finding_type: policy_violation}}
+  ot:       {enabled: true, adapter: file_drop, product: Claroty xDome, settings: {path: data/drop/ot}}
+  backup:   {enabled: true, adapter: file_drop, product: Rubrik Security Cloud, settings: {path: data/drop/backup}}
+
+security:
+  # API keys: env LODESTAR_API_KEYS="ciso:<key>,analyst:<key>,exec:<key>"
+  # Webhook HMAC secret: env LODESTAR_WEBHOOK_SECRET
+  require_auth: false           # set true for any non-demo deployment (enforced automatically in live mode)

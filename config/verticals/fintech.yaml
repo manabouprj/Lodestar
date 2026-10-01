@@ -1,0 +1,20 @@
+id: fintech
+inherits: _default
+name: Fintech
+description: Digital payments, wallets, lending and neobanks - cloud-native, API-first.
+frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, PCI DSS v4.0.1, SOC 2 Type II, DFSA / ADGM FSRA cyber rules, EU DORA]
+regulators: [Financial services regulator, Card schemes]
+mandatory_domains: [cloud, sast, dast, waf, identity, edr, soc, brand, ai_security]
+domain_weights: {cloud: 1.3, sast: 1.2, dast: 1.2, waf: 1.2, identity: 1.15, ai_security: 1.1, firewall: 0.8}
+sla_days: {critical: 7, high: 14, medium: 30, low: 90}
+financial_exposure: {currency: USD, downtime_cost_per_hour: 400000, cost_per_record: 220, regulatory_fine_ceiling: 10000000}
+threat_landscape:
+  - API abuse and broken object-level authorisation
+  - Cloud misconfiguration and leaked secrets
+  - Account takeover and synthetic identity fraud
+  - Supply-chain compromise via open-source packages
+  - Prompt injection against customer-facing AI assistants
+kris_extra:
+  - {metric: cloud_critical_misconfig_count, label: Critical cloud misconfigurations, appetite: 0, direction: lower_better, unit: ""}
+  - {metric: internet_facing_critical_count, label: Internet-facing critical exposures, appetite: 0, direction: lower_better, unit: ""}
+crown_jewel_services: [Payments API, Wallet ledger, KYC platform, Mobile app backend]

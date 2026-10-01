@@ -1,0 +1,20 @@
+id: energy
+inherits: _default
+name: Energy (Oil & Gas)
+description: Upstream, midstream and downstream oil & gas.
+frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, IEC 62443, NIST SP 800-82r3, API Std 1164, UAE IA Standards]
+regulators: [National critical-infrastructure authority, Energy ministry]
+mandatory_domains: [ot, edr, vmdr, identity, pam, soc, firewall, ztna, backup]
+domain_weights: {ot: 1.4, pam: 1.25, firewall: 1.15, ztna: 1.15, backup: 1.2, brand: 0.8, sast: 0.8}
+sla_days: {critical: 14, high: 30, medium: 90, low: 180}
+financial_exposure: {currency: USD, downtime_cost_per_hour: 2000000, cost_per_record: 150, regulatory_fine_ceiling: 20000000}
+threat_landscape:
+  - State-aligned intrusion into ICS / SCADA
+  - Ransomware crossing the IT/OT boundary
+  - Unmanaged vendor remote access to plant networks
+  - Wiper malware targeting engineering workstations
+kris_extra:
+  - {metric: ot_unmanaged_remote_access_count, label: Unmanaged vendor remote access to OT, appetite: 0, direction: lower_better, unit: ""}
+  - {metric: backup_immutability_pct, label: Critical systems with immutable backups, appetite: 100, direction: higher_better, unit: "%"}
+crown_jewel_services: [DCS / SCADA, Safety instrumented systems, Pipeline control, Trading & scheduling]
+terminology: {ot: ICS / SCADA}

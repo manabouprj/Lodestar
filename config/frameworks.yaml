@@ -1,0 +1,121 @@
+# Control-domain -> framework control mapping packs.
+# applies_to: all  -> used for every vertical
+# otherwise the pack is used only if its `name` appears in the vertical profile's frameworks list.
+frameworks:
+  - name: NIST CSF 2.0
+    short: CSF
+    applies_to: all
+    names:
+      ID.AM-01: Hardware inventories maintained
+      ID.RA-01: Vulnerabilities identified and recorded
+      ID.RA-02: Cyber threat intelligence received
+      PR.AA-01: Identities and credentials managed
+      PR.AA-03: Users, services and hardware authenticated
+      PR.AA-05: Access permissions follow least privilege
+      PR.DS-01: Data-at-rest protected
+      PR.DS-02: Data-in-transit protected
+      PR.DS-11: Backups created, protected, maintained and tested
+      PR.PS-01: Configuration management practices applied
+      PR.PS-02: Software maintained, replaced and removed
+      PR.PS-06: Secure software development practices
+      PR.IR-01: Networks protected from unauthorised logical access
+      PR.IR-03: Resilience mechanisms implemented
+      DE.CM-01: Networks and network services monitored
+      DE.CM-03: Personnel activity and technology usage monitored
+      DE.CM-09: Computing hardware, software and data monitored
+      DE.AE-03: Information correlated from multiple sources
+      RS.MA-01: Incident response plan executed
+    mapping:
+      edr: [DE.CM-09, PR.PS-01]
+      vmdr: [ID.RA-01, PR.PS-02, ID.AM-01]
+      identity: [PR.AA-01, PR.AA-03]
+      pam: [PR.AA-05, PR.AA-01]
+      soc: [DE.AE-03, RS.MA-01, DE.CM-01]
+      email: [DE.CM-09, PR.DS-02]
+      firewall: [PR.IR-01, DE.CM-01]
+      waf: [PR.IR-01, PR.PS-01]
+      web_proxy: [DE.CM-03, PR.IR-01]
+      ztna: [PR.AA-03, PR.IR-01]
+      cloud: [PR.PS-01, PR.DS-01]
+      sast: [PR.PS-06]
+      dast: [PR.PS-06, ID.RA-01]
+      brand: [ID.RA-02]
+      ai_security: [DE.CM-03, PR.DS-02]
+      dlp: [PR.DS-01, PR.DS-02]
+      ot: [ID.AM-01, PR.IR-01, DE.CM-01]
+      backup: [PR.DS-11, PR.IR-03]
+
+  - name: ISO/IEC 27001:2022
+    short: ISO27001
+    applies_to: all
+    names:
+      A.5.7: Threat intelligence
+      A.5.23: Information security for use of cloud services
+      A.5.25: Assessment and decision on information security events
+      A.8.1: User endpoint devices
+      A.8.2: Privileged access rights
+      A.8.5: Secure authentication
+      A.8.7: Protection against malware
+      A.8.8: Management of technical vulnerabilities
+      A.8.9: Configuration management
+      A.8.12: Data leakage prevention
+      A.8.13: Information backup
+      A.8.16: Monitoring activities
+      A.8.20: Networks security
+      A.8.22: Segregation of networks
+      A.8.23: Web filtering
+      A.8.26: Application security requirements
+      A.8.28: Secure coding
+      A.8.29: Security testing in development and acceptance
+    mapping:
+      edr: [A.8.7, A.8.1]
+      vmdr: [A.8.8]
+      identity: [A.8.5]
+      pam: [A.8.2]
+      soc: [A.8.16, A.5.25]
+      email: [A.8.7]
+      firewall: [A.8.20, A.8.22]
+      waf: [A.8.26, A.8.20]
+      web_proxy: [A.8.23]
+      ztna: [A.8.5, A.8.22]
+      cloud: [A.5.23, A.8.9]
+      sast: [A.8.28]
+      dast: [A.8.29]
+      brand: [A.5.7]
+      ai_security: [A.8.12, A.5.23]
+      dlp: [A.8.12]
+      ot: [A.8.22, A.8.20]
+      backup: [A.8.13]
+
+  - name: PCI DSS v4.0.1
+    short: PCI
+    applies_to: vertical
+    names:
+      "1": Install and maintain network security controls
+      "2": Apply secure configurations to all system components
+      "3": Protect stored account data
+      "5": Protect systems and networks from malicious software
+      "5.4.1": Mechanisms to detect and protect against phishing
+      "6.2": Bespoke and custom software developed securely
+      "6.3.3": Security patches installed within defined timeframes
+      "6.4.2": Automated technical solution protecting public-facing web apps
+      "7": Restrict access by business need to know
+      "8": Identify users and authenticate access
+      "8.4": Multi-factor authentication
+      "10": Log and monitor all access
+      "11.3": Internal and external vulnerability scans
+      "12.10": Respond immediately to suspected incidents
+    mapping:
+      edr: ["5"]
+      vmdr: ["6.3.3", "11.3"]
+      identity: ["8", "8.4"]
+      pam: ["7", "8"]
+      soc: ["10", "12.10"]
+      email: ["5.4.1"]
+      firewall: ["1"]
+      waf: ["6.4.2"]
+      cloud: ["2"]
+      sast: ["6.2"]
+      dast: ["6.2", "11.3"]
+      dlp: ["3"]
+      ztna: ["8.4"]

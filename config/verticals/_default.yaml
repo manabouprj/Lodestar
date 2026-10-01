@@ -1,0 +1,32 @@
+# Baseline profile. Every vertical inherits from this and overrides what differs.
+id: _default
+name: Generic Enterprise
+description: Baseline profile for any enterprise.
+frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, CIS Controls v8.1]
+regulators: []
+mandatory_domains: [edr, vmdr, identity, soc, email]
+domain_weights: {}          # multiplier per domain, default 1.0
+sla_days: {critical: 15, high: 30, medium: 60, low: 120}
+financial_exposure:
+  currency: USD
+  downtime_cost_per_hour: 250000
+  cost_per_record: 165
+  regulatory_fine_ceiling: 5000000
+threat_landscape:
+  - Ransomware and data extortion
+  - Business email compromise
+  - Credential theft and identity attacks
+  - Exploitation of internet-facing applications
+kris:
+  - {metric: posture_score,                 label: Security posture score,              appetite: 75,  direction: higher_better, unit: "/100"}
+  - {metric: edr_coverage_pct,              label: Endpoint protection coverage,        appetite: 98,  direction: higher_better, unit: "%"}
+  - {metric: mfa_coverage_pct,              label: MFA coverage (workforce),            appetite: 99,  direction: higher_better, unit: "%"}
+  - {metric: priv_accounts_vaulted_pct,     label: Privileged accounts under PAM,       appetite: 95,  direction: higher_better, unit: "%"}
+  - {metric: critical_vuln_sla_pct,         label: Critical vulns fixed within SLA,     appetite: 90,  direction: higher_better, unit: "%"}
+  - {metric: kev_open_count,                label: Known-exploited vulns open (CISA KEV), appetite: 0, direction: lower_better,  unit: ""}
+  - {metric: phishing_click_rate_pct,       label: Phishing simulation click rate,      appetite: 5,   direction: lower_better,  unit: "%"}
+  - {metric: mttr_critical_days,            label: Mean time to remediate (critical),   appetite: 10,  direction: lower_better,  unit: " days"}
+  - {metric: mttd_hours,                    label: Mean time to detect,                 appetite: 4,   direction: lower_better,  unit: " h"}
+  - {metric: toxic_combinations_open,       label: Open attack paths (toxic combos),    appetite: 0,   direction: lower_better,  unit: ""}
+crown_jewel_services: [Core ERP, Email & collaboration, Customer portal]
+terminology: {}

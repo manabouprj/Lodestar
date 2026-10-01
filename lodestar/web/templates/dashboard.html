@@ -1,0 +1,420 @@
+<title>LODESTAR Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: navigator's chart-table. Header strip -> hero (posture + signal funnel) -> focus queue beside attack paths -> KRIs -> controls -> trend -> compliance -> actions. */
+:root{
+  --bg:#eef1f6; --panel:#ffffff; --panel-2:#f6f8fb; --ink:#14213a; --ink-2:#4a5670; --ink-3:#6f7a90; --rule:#d6dce7;
+  --brass:#8a5d12; --brass-soft:#f4ead5; --navy:#1d4f91; --navy-soft:#dbe7f7;
+  --good:#0b7a0b; --good-bg:#e3f3e3; --warn:#8a5a00; --warn-bg:#fbefd2; --serious:#b4470f; --serious-bg:#fbe5d9; --crit:#b42828; --crit-bg:#f9e0e0;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"IBM Plex Sans","Segoe UI",Arial,sans-serif; --mono:"IBM Plex Mono",Consolas,monospace;
+  --radius:6px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1422; --panel:#141d2e; --panel-2:#192438; --ink:#e7ebf3; --ink-2:#aab4c8; --ink-3:#8590a6; --rule:#27334b;
+  --brass:#e2b25a; --brass-soft:#3a2f18; --navy:#7fa9ea; --navy-soft:#1d2d4a;
+  --good:#4cc35f; --good-bg:#15301c; --warn:#e8b63c; --warn-bg:#352a10; --serious:#f0905a; --serious-bg:#3a2216; --crit:#f07272; --crit-bg:#3d1b1d;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1422; --panel:#141d2e; --panel-2:#192438; --ink:#e7ebf3; --ink-2:#aab4c8; --ink-3:#8590a6; --rule:#27334b;
+  --brass:#e2b25a; --brass-soft:#3a2f18; --navy:#7fa9ea; --navy-soft:#1d2d4a;
+  --good:#4cc35f; --good-bg:#15301c; --warn:#e8b63c; --warn-bg:#352a10; --serious:#f0905a; --serious-bg:#3a2216; --crit:#f07272; --crit-bg:#3d1b1d;
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--body);margin:0}
+.wrap{max-width:1360px;margin:0 auto;padding-inline:20px;padding-block:0 48px}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.label{font:600 12px/1.2 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+h2{font:600 22px/1.1 var(--display);letter-spacing:.05em;text-transform:uppercase;margin:0;text-wrap:balance}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:var(--radius)}
+section{margin-top:28px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.sec-head p{margin:0;color:var(--ink-2);font-size:13px;max-width:70ch}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--rule)}
+.top .wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;font:700 26px/1 var(--display);letter-spacing:.16em}
+.brand svg{width:26px;height:26px}
+.brand small{font:500 11px var(--mono);letter-spacing:.04em;color:var(--ink-3);display:block;margin-top:2px}
+.top .spacer{flex:1}
+.org-select{background:var(--panel);border:1px solid var(--rule);border-radius:var(--radius);padding:7px 10px;min-width:0;max-width:100%}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--ink-2);background:var(--panel);white-space:nowrap}
+.demo-flag{background:var(--brass-soft);color:var(--brass);border-color:transparent;font-weight:600}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,2fr);gap:16px;margin-top:20px}
+.posture{padding:18px 20px;display:grid;grid-template-columns:auto 1fr;gap:6px 20px;align-items:center}
+.posture .big{font:700 84px/0.9 var(--display);font-variant-numeric:tabular-nums}
+.posture .big small{font-size:24px;color:var(--ink-3)}
+.posture .meta{display:grid;gap:4px;font-size:13px;color:var(--ink-2)}
+.posture .spark{grid-column:1/-1}
+.delta-up{color:var(--good)} .delta-down{color:var(--crit)}
+.funnel{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.step{background:var(--panel-2);border-radius:4px;padding:10px 12px;position:relative;min-width:0}
+.step .n{font:700 34px/1 var(--display);font-variant-numeric:tabular-nums}
+.step .t{font-size:12px;color:var(--ink-2)}
+.step.hot{background:var(--brass-soft)} .step.hot .n{color:var(--brass)}
+.step.path{background:var(--crit-bg)} .step.path .n{color:var(--crit)}
+.funnel-note{font-size:13px;color:var(--ink-2);margin:0}
+.minis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.mini{border-top:2px solid var(--rule);padding-top:6px}
+.mini .n{font:600 22px/1.1 var(--display);font-variant-numeric:tabular-nums}
+
+/* focus queue */
+.focus{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--rule);padding:0 12px;flex-wrap:wrap}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:12px 10px 9px;cursor:pointer;font:600 16px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--brass)}
+.tab .c{font:500 12px var(--mono);margin-left:6px;padding:1px 6px;border-radius:999px;background:var(--panel-2)}
+.filters{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule);flex-wrap:wrap;align-items:center}
+.filters select{background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;padding:5px 8px;font-size:13px;max-width:100%}
+.queue{list-style:none;margin:0;padding:0;max-height:760px;overflow:auto}
+.item{border-bottom:1px solid var(--rule)}
+.item>button{all:unset;box-sizing:border-box;display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:12px;width:100%;padding:12px;cursor:pointer;align-items:start}
+.item>button:hover{background:var(--panel-2)}
+.item>button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+.score{font:700 22px/1 var(--display);text-align:center;padding:8px 0;border-radius:4px;font-variant-numeric:tabular-nums}
+.s-crit{background:var(--crit-bg);color:var(--crit)} .s-high{background:var(--serious-bg);color:var(--serious)} .s-med{background:var(--warn-bg);color:var(--warn)} .s-low{background:var(--panel-2);color:var(--ink-2)}
+.ititle{font-weight:600;line-height:1.35}
+.isub{font-size:12px;color:var(--ink-2);margin-top:3px;overflow-wrap:anywhere}
+.chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;font:500 11px/1 var(--mono);padding:4px 6px;border-radius:3px;background:var(--panel-2);color:var(--ink-2);white-space:nowrap}
+.chip.kev{background:var(--crit-bg);color:var(--crit)} .chip.ap{background:var(--brass-soft);color:var(--brass)}
+.due{font:500 12px var(--mono);color:var(--ink-3);text-align:right;white-space:nowrap}
+.due.over{color:var(--crit)}
+.detail{padding:0 12px 14px 80px;display:grid;gap:8px;font-size:13px}
+.detail ul{margin:0;padding-left:18px}
+.detail .label{margin-bottom:2px}
+.empty{padding:28px;text-align:center;color:var(--ink-3)}
+
+.paths{display:flex;flex-direction:column;gap:10px}
+.path{padding:12px 14px;border-left:4px solid var(--crit)}
+.path.high{border-left-color:var(--serious)}
+.path h3{font:600 17px/1.2 var(--display);letter-spacing:.02em;margin:0 0 4px}
+.path p{margin:4px 0 0;font-size:13px;color:var(--ink-2)}
+.path .act{color:var(--ink);font-weight:500}
+.dom-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+
+/* status chips (icon + label, never color alone) */
+.st{display:inline-flex;align-items:center;gap:5px;font:600 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.04em;padding:4px 7px;border-radius:3px;white-space:nowrap}
+.st::before{font-size:10px}
+.st.within,.st.healthy,.st.on_track{background:var(--good-bg);color:var(--good)} .st.within::before,.st.healthy::before,.st.on_track::before{content:"●"}
+.st.near,.st.degraded,.st.attention{background:var(--warn-bg);color:var(--warn)} .st.near::before,.st.degraded::before,.st.attention::before{content:"▲"}
+.st.breach,.st.failing,.st.at_risk,.st.stale{background:var(--crit-bg);color:var(--crit)} .st.breach::before,.st.failing::before,.st.at_risk::before,.st.stale::before{content:"■"}
+.st.no_data{background:var(--panel-2);color:var(--ink-3)}
+
+/* tables */
+.tscroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font:600 12px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:10px 12px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:middle}
+td.r,th.r{text-align:right}
+tr:last-child td{border-bottom:0}
+
+/* controls */
+.ctl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ctl{padding:12px 14px;display:grid;gap:6px}
+.ctl .hd{display:flex;justify-content:space-between;gap:8px;align-items:start}
+.ctl .nm{font-weight:600;line-height:1.25}
+.ctl .pr{font-size:12px;color:var(--ink-3)}
+.bar{height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden}
+.bar>i{display:block;height:100%;border-radius:3px;background:var(--navy)}
+.ctl .stats{display:flex;gap:12px;font:12px var(--mono);color:var(--ink-2);flex-wrap:wrap}
+.ctl .iss{font-size:12px;color:var(--ink-2)}
+.ni{margin-top:10px;font-size:13px;color:var(--ink-2)}
+
+/* charts */
+.chart-box{padding:14px 16px;position:relative}
+.chart-box svg{display:block;width:100%;height:auto}
+.axis text,.chart-box text{font:11px var(--mono);fill:var(--ink-3)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font:12px var(--mono);padding:6px 8px;border-radius:4px;white-space:nowrap;transform:translate(-50%,-110%)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.hbar{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr) 36px;gap:10px;align-items:center;font-size:13px;padding:4px 0}
+.hbar .bar{height:10px}
+.fw{padding:12px 14px;border-bottom:1px solid var(--rule)} .fw:last-child{border-bottom:0}
+.fw .hd{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.fw ul{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--ink-2)}
+
+.approve{background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px;white-space:nowrap}
+.approve[aria-pressed="true"]{background:var(--good-bg);color:var(--good);border-color:transparent}
+footer{margin-top:32px;font-size:12px;color:var(--ink-3);display:grid;gap:4px}
+
+@media (max-width:1000px){.hero,.focus,.two{grid-template-columns:minmax(0,1fr)}.steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.wrap{padding-inline:16px}.minis{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(2,minmax(0,1fr))}.step.path{grid-column:1/-1}
+  .posture .big{font-size:64px}.item>button{grid-template-columns:48px minmax(0,1fr)}.due{grid-column:2;text-align:left}.detail{padding-left:12px}}
+@media (prefers-reduced-motion:no-preference){.bar>i{transition:width .5s ease}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand" aria-label="LODESTAR">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1 L19 13 L31 16 L19 19 L16 31 L13 19 L1 16 L13 13 Z" fill="var(--brass)"/><circle cx="16" cy="16" r="2.4" fill="var(--bg)"/></svg>
+      <div>LODESTAR<small>security posture command</small></div>
+    </div>
+    <div class="spacer"></div>
+    <label class="label" for="org">Organisation</label>
+    <select id="org" class="org-select"></select>
+    <span class="pill" id="vertical-pill"></span>
+    <span class="pill" id="asof-pill"></span>
+    <span class="pill demo-flag" id="demo-pill" hidden>Fictional demo data</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div class="panel posture" aria-live="polite">
+      <div><div class="label">Security posture</div><div class="big" id="posture"></div></div>
+      <div class="meta" id="posture-meta"></div>
+      <div class="spark" id="posture-spark"></div>
+    </div>
+    <div class="panel funnel">
+      <div class="label">From tool noise to today's focus</div>
+      <div class="steps" id="funnel"></div>
+      <p class="funnel-note" id="funnel-note"></p>
+      <div class="minis" id="minis"></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>Focus queue</h2><p>Ranked by the explainable LODESTAR Risk Score. Open any item to see why it is on the list and what fixes it.</p></div>
+    <div class="focus">
+      <div class="panel">
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div class="filters">
+          <label class="label" for="f-team">Owner</label><select id="f-team"><option value="">All teams</option></select>
+          <label class="label" for="f-dom">Control</label><select id="f-dom"><option value="">All controls</option></select>
+          <label class="label" for="f-ap"><input type="checkbox" id="f-ap"> Attack paths only</label>
+        </div>
+        <ul class="queue" id="queue" role="tabpanel"></ul>
+      </div>
+      <div>
+        <div class="sec-head"><h2 style="font-size:18px">Attack paths</h2><span class="pill" id="ap-count"></span></div>
+        <div class="paths" id="paths"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Key risk indicators</h2><p id="kri-note">Measured against the risk appetite in the industry profile. 90-day trend shown.</p></div>
+    <div class="panel tscroll"><table id="kri"><thead><tr><th>Indicator</th><th class="r">Now</th><th class="r">Appetite</th><th class="r">30-day change</th><th>90-day trend</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Control assurance</h2><p>Is each control deployed, fresh and doing its job? Effectiveness = coverage, data freshness, policy drift and health.</p></div>
+    <div class="ctl-grid" id="controls"></div>
+    <div class="ni" id="not-integrated"></div>
+  </section>
+
+  <section class="two">
+    <div>
+      <div class="sec-head"><h2>Posture trend</h2><p>Last 180 days, with risk appetite.</p></div>
+      <div class="panel chart-box" id="trend"></div>
+    </div>
+    <div>
+      <div class="sec-head"><h2>Team workload</h2><p>Today + this week, by owning team.</p></div>
+      <div class="panel chart-box" id="teams"></div>
+    </div>
+  </section>
+
+  <section class="two">
+    <div>
+      <div class="sec-head"><h2>Framework readiness</h2><p id="fw-note"></p></div>
+      <div class="panel" id="compliance"></div>
+    </div>
+    <div>
+      <div class="sec-head"><h2>Remediation actions</h2><p>Drafted by the Action agent. Nothing reaches ITSM until a person approves it.</p></div>
+      <div class="panel tscroll"><table id="actions"><thead><tr><th>Action</th><th>Teams</th><th class="r">Items</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
+(function(){
+  const D = LODESTAR_DATA || {orgs:{}, order:[]};
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const fmt = (v,u="") => v==null ? "n/a" : (Math.round(v*10)/10).toLocaleString() + (u||"");
+  const signed = v => v==null ? "n/a" : (v>0?"+":"") + (Math.round(v*10)/10);
+  const sevCls = s => s>=75?"s-crit":s>=55?"s-high":s>=35?"s-med":"s-low";
+  const HZ = [["today","Today"],["week","This week"],["month","This month"]];
+  let P = null, horizon = "today";
+  const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+  // ---- org selector
+  const sel = $("#org");
+  D.order.forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = D.orgs[k].org + " · " + D.orgs[k].vertical; sel.appendChild(o); });
+  const saved = store.get("lodestar.org");
+  sel.value = (saved && D.orgs[saved]) ? saved : (D.default || D.order[0]);
+  sel.addEventListener("change", () => { store.set("lodestar.org", sel.value); load(sel.value); });
+  $("#demo-pill").hidden = !D.demo;
+
+  function spark(vals, w, h, opts={}){
+    const v = vals.filter(x => x!=null); if (v.length < 2) return "";
+    let lo = Math.min(...v), hi = Math.max(...v); if (opts.ref!=null){lo=Math.min(lo,opts.ref);hi=Math.max(hi,opts.ref);} const sp = (hi-lo)||1;
+    const x = i => 2 + i*(w-6)/(vals.length-1), y = val => h-3 - (val-lo)/sp*(h-6);
+    let d = "", started=false; vals.forEach((val,i)=>{ if(val==null) return; d += (started?"L":"M")+x(i).toFixed(1)+","+y(val).toFixed(1); started=true; });
+    const last = vals.length-1, lv = vals[last];
+    const ref = opts.ref!=null ? `<line x1="2" x2="${w-2}" y1="${y(opts.ref)}" y2="${y(opts.ref)}" stroke="var(--ink-3)" stroke-dasharray="3 3" stroke-width="1"/>` : "";
+    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(opts.label||'trend')}">${ref}<path d="${d}" fill="none" stroke="var(--navy)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${lv!=null?`<circle cx="${x(last)}" cy="${y(lv)}" r="3" fill="var(--brass)"/>`:""}</svg>`;
+  }
+
+  function load(key){
+    P = D.orgs[key]; if(!P) return;
+    $("#vertical-pill").textContent = "Industry profile: " + P.vertical;
+    $("#asof-pill").textContent = "As of " + (P.generated_at||"").slice(0,10);
+    // posture
+    $("#posture").innerHTML = Math.round(P.posture) + "<small>/100</small>";
+    const cls = v => v==null?"":(v>=0?"delta-up":"delta-down");
+    $("#posture-meta").innerHTML = `<div>Risk appetite <b class="num">${P.appetite}</b></div>
+      <div>7 days <b class="num ${cls(P.posture_d7)}">${signed(P.posture_d7)}</b> · 30 days <b class="num ${cls(P.posture_d30)}">${signed(P.posture_d30)}</b></div>
+      <div>Data trust <b class="num">${fmt(P.data_quality.trust_score)}</b> · Phase <b class="num">${P.data_quality.phase}</b></div>
+      ${P.data_quality.confidence && P.data_quality.confidence!=="high" ? `<div><span class="st ${P.data_quality.confidence==="low"?"breach":"near"}">${P.data_quality.confidence} confidence</span> ${(P.data_quality.mandatory_controls_missing||[]).length} mandatory feed(s) missing</div>` : ""}`;
+    $("#posture-spark").innerHTML = spark(P.trend.slice(-90).map(t=>t.posture), 320, 54, {ref:P.appetite, label:"Posture, last 90 days, dashed line is appetite"});
+    // funnel
+    const F = P.funnel;
+    $("#funnel").innerHTML = [
+      [F.signals,"signals from "+P.controls.length+" controls",""],[F.open,"open after de-duplication",""],
+      [F.week,"this week",""],[F.today,"today","hot"],[F.attack_paths,"attack paths","path"]]
+      .map(([n,t,c])=>`<div class="step ${c}"><div class="n">${n.toLocaleString()}</div><div class="t">${t}</div></div>`).join("");
+    const pct = F.open ? (100*F.today/F.open).toFixed(1) : 0;
+    $("#funnel-note").innerHTML = `Today's list is <b>${pct}%</b> of open signals. Correlation joined ${F.attack_paths} multi-control attack paths that no single tool reports on its own.`;
+    $("#minis").innerHTML = [["SLA breaches",P.sla_breaches],["Open incidents",P.incidents],["Integrated controls",P.controls.length+" / 18"],["CMDB match",fmt(P.data_quality.asset_match_rate_pct,"%")]]
+      .map(([t,n])=>`<div class="mini"><div class="label">${t}</div><div class="n">${n}</div></div>`).join("");
+    // filters
+    const all = [...P.lists.today, ...P.lists.week, ...P.lists.month];
+    const teams = [...new Set(all.map(f=>f.owner).filter(Boolean))].sort();
+    const doms = [...new Map(all.map(f=>[f.domain,f.domain_title])).entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+    $("#f-team").innerHTML = `<option value="">All teams</option>` + teams.map(t=>`<option>${esc(t)}</option>`).join("");
+    $("#f-dom").innerHTML = `<option value="">All controls</option>` + doms.map(([k,t])=>`<option value="${k}">${esc(t)}</option>`).join("");
+    renderTabs(); renderQueue(); renderPaths(); renderKRIs(); renderControls(); renderTrend(); renderTeams(); renderCompliance(); renderActions();
+    $("#foot").innerHTML = `<div>${esc(P.org)} · ${esc(P.vertical)} profile · frameworks: ${P.frameworks.map(esc).join(" · ")}</div>
+      <div>Duplicates removed: ${P.data_quality.duplicates_removed ?? 0} · stale feeds: ${(P.data_quality.stale_connectors||[]).join(", ")||"none"} · items rolled to this week by Today capacity: ${P.data_quality.today_deferred ?? 0}</div>
+      ${D.demo?'<div>All organisations, people, hosts and domains on this page are fictional. CVE identifiers are real public CVEs used for illustration.</div>':''}`;
+  }
+
+  function renderTabs(){
+    $("#tabs").innerHTML = HZ.map(([k,t])=>`<button class="tab" role="tab" id="tab-${k}" aria-selected="${k===horizon}" data-h="${k}">${t}<span class="c">${P.counts[k]}</span></button>`).join("");
+    document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{horizon=b.dataset.h;renderTabs();renderQueue();}));
+  }
+
+  function renderQueue(){
+    const team=$("#f-team").value, dom=$("#f-dom").value, ap=$("#f-ap").checked;
+    const rows = P.lists[horizon].filter(f=>(!team||f.owner===team)&&(!dom||f.domain===dom)&&(!ap||f.attack_path));
+    const asOf = (P.generated_at||"").slice(0,10);
+    const more = P.counts[horizon] - P.lists[horizon].length;
+    $("#queue").innerHTML = rows.length ? rows.map((f,i)=>`
+      <li class="item">
+        <button aria-expanded="false" aria-controls="d-${i}">
+          <div class="score ${sevCls(f.score)}" title="LODESTAR Risk Score">${Math.round(f.score)}</div>
+          <div><div class="ititle">${esc(f.title)}</div>
+            <div class="isub">${esc(f.asset||f.user||"")}${(f.asset||f.user)?" · ":""}${esc(f.owner||"")}</div>
+            <div class="chips"><span class="chip">${esc(f.severity)}</span><span class="chip">${esc(f.domain_title)}</span>${f.kev?'<span class="chip kev">CISA KEV</span>':''}${f.attack_path?'<span class="chip ap">Attack path</span>':''}${f.cve?`<span class="chip">${esc(f.cve)}</span>`:''}</div></div>
+          <div class="due ${f.due && f.due < asOf ? 'over':''}">${f.due ? (f.due < asOf ? "overdue · " : "due ") + f.due : ""}</div>
+        </button>
+        <div class="detail" id="d-${i}" hidden>
+          <div><div class="label">Why it is here</div><ul>${f.why.map(w=>`<li>${esc(w)}</li>`).join("")}</ul></div>
+          ${f.remediation?`<div><div class="label">Recommended fix</div>${esc(f.remediation)}</div>`:""}
+          <div class="isub">Source: ${esc(f.source)} · first seen ${f.first_seen}${f.frameworks.length?" · maps to "+f.frameworks.map(esc).join(", "):""}</div>
+        </div>
+      </li>`).join("") + (more>0 && !team && !dom && !ap ? `<li class="empty">${more} more ${horizon==="month"?"this month":"items"} in the API and weekly report.</li>`:"")
+      : `<li class="empty">No items match these filters.</li>`;
+    document.querySelectorAll(".item>button").forEach(b=>b.addEventListener("click",()=>{
+      const d = document.getElementById(b.getAttribute("aria-controls")); const open = d.hidden; d.hidden = !open; b.setAttribute("aria-expanded", String(open));
+    }));
+  }
+  ["#f-team","#f-dom","#f-ap"].forEach(s=>$(s).addEventListener("change",renderQueue));
+
+  function renderPaths(){
+    $("#ap-count").textContent = P.attack_paths.length + " open";
+    $("#paths").innerHTML = P.attack_paths.slice(0,8).map(c=>`
+      <article class="panel path ${c.severity==='critical'?'':'high'}">
+        <div class="label" style="color:${c.severity==='critical'?'var(--crit)':'var(--serious)'}">${esc(c.severity)} · score ${Math.round(c.score)} · ${esc(c.rule_id)}</div>
+        <h3>${esc(c.title)}</h3>
+        <div class="isub">${esc(c.entity)}</div>
+        <div class="dom-row">${c.domains.map(d=>`<span class="chip">${esc(d)}</span>`).join("")}${(c.mitre||[]).map(m=>`<span class="chip">${esc(m)}</span>`).join("")}</div>
+        <p>${esc(c.narrative)}</p><p class="act">${esc(c.recommended_action)}</p>
+      </article>`).join("") + (P.attack_paths.length>8?`<div class="isub">${P.attack_paths.length-8} further attack paths are in the Today queue.</div>`:"");
+  }
+
+  function renderKRIs(){
+    $("#kri tbody").innerHTML = P.kris.map(k=>{
+      const better = k.delta30==null?null:((k.delta30>0)===(k.direction==="higher_better"));
+      return `<tr><td>${esc(k.label)}</td><td class="r num">${fmt(k.value,k.unit)}</td>
+      <td class="r num">${k.direction==="higher_better"?"≥":"≤"} ${fmt(k.appetite,k.unit)}</td>
+      <td class="r num ${better==null||k.delta30===0?"":(better?"delta-up":"delta-down")}">${signed(k.delta30)}</td>
+      <td>${spark(k.spark,120,28,{label:k.label+" 90-day trend"})}</td>
+      <td><span class="st ${k.status}">${k.status.replace("_"," ")}</span></td></tr>`;}).join("");
+  }
+
+  function renderControls(){
+    $("#controls").innerHTML = P.controls.map(c=>`
+      <div class="panel ctl"><div class="hd"><div><div class="nm">${esc(c.title)}</div><div class="pr">${esc(c.product)} · phase ${c.phase}</div></div><span class="st ${c.status}">${c.status}</span></div>
+      <div class="bar" role="img" aria-label="Effectiveness ${c.effectiveness} of 100"><i style="width:${c.effectiveness}%"></i></div>
+      <div class="stats"><span>eff ${fmt(c.effectiveness)}</span><span>cov ${fmt(c.coverage,"%")}</span><span>${c.freshness_h<1?"live":fmt(c.freshness_h,"h old")}</span><span>${c.open} open</span></div>
+      ${c.issues.length?`<div class="iss">${esc(c.issues[0])}</div>`:""}</div>`).join("");
+    const ni = P.not_integrated;
+    $("#not-integrated").innerHTML = ni.length ? "Not integrated: " + ni.map(n=>esc(n.title)+(n.mandatory?" <b style='color:var(--crit)'>(mandatory for this industry)</b>":"")).join(", ") : "All 18 control domains integrated.";
+  }
+
+  function renderTrend(){
+    const T = P.trend; const box = $("#trend"); if(T.length<2){box.textContent="Not enough history yet.";return;}
+    const w=640,h=240,pl=34,pr=12,pt=12,pb=26;
+    const vals=T.map(t=>t.posture); let lo=Math.floor(Math.min(...vals,P.appetite)/10)*10, hi=Math.min(100,Math.ceil(Math.max(...vals,P.appetite)/10)*10);
+    const x=i=>pl+i*(w-pl-pr)/(T.length-1), y=v=>pt+(hi-v)/(hi-lo)*(h-pt-pb);
+    let grid=""; for(let g=lo; g<=hi; g+=10){grid+=`<line x1="${pl}" x2="${w-pr}" y1="${y(g)}" y2="${y(g)}" stroke="var(--rule)" stroke-width="1"/><text x="${pl-6}" y="${y(g)+4}" text-anchor="end">${g}</text>`;}
+    const months=[]; T.forEach((t,i)=>{ if(t.date.slice(8,10)==="01") months.push([i,t.date.slice(0,7)]); });
+    const mt = months.map(([i,m])=>`<text x="${x(i)}" y="${h-8}" text-anchor="middle">${m}</text>`).join("");
+    const line = T.map((t,i)=>(i?"L":"M")+x(i).toFixed(1)+","+y(t.posture).toFixed(1)).join("");
+    const area = line + `L${x(T.length-1)},${y(lo)}L${x(0)},${y(lo)}Z`;
+    box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Posture score over 180 days">
+      ${grid}${mt}<path d="${area}" fill="var(--navy-soft)" opacity=".6"/>
+      <line x1="${pl}" x2="${w-pr}" y1="${y(P.appetite)}" y2="${y(P.appetite)}" stroke="var(--brass)" stroke-dasharray="5 4" stroke-width="1.5"/>
+      <text x="${w-pr}" y="${y(P.appetite)-6}" text-anchor="end" style="fill:var(--brass)">appetite ${P.appetite}</text>
+      <path d="${line}" fill="none" stroke="var(--navy)" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="${x(T.length-1)}" cy="${y(vals[vals.length-1])}" r="4" fill="var(--brass)"/>
+      <line id="xh" x1="0" x2="0" y1="${pt}" y2="${h-pb}" stroke="var(--ink-3)" stroke-width="1" visibility="hidden"/>
+      <rect x="${pl}" y="${pt}" width="${w-pl-pr}" height="${h-pt-pb}" fill="transparent" id="hit"/></svg><div class="tip" id="tip" hidden></div>`;
+    const svg=box.querySelector("svg"), tip=box.querySelector("#tip"), xh=box.querySelector("#xh");
+    function move(ev){ const r=svg.getBoundingClientRect(); const px=(ev.clientX-r.left)/r.width*w; let i=Math.round((px-pl)/(w-pl-pr)*(T.length-1)); i=Math.max(0,Math.min(T.length-1,i));
+      xh.setAttribute("x1",x(i));xh.setAttribute("x2",x(i));xh.setAttribute("visibility","visible");
+      tip.hidden=false; tip.style.left=(x(i)/w*r.width+16)+"px"; tip.style.top=(y(T[i].posture)/h*r.height+14)+"px";
+      tip.textContent=`${T[i].date} · posture ${T[i].posture} · today ${T[i].today} · SLA breaches ${T[i].sla}`; }
+    svg.addEventListener("pointermove",move); svg.addEventListener("pointerleave",()=>{tip.hidden=true;xh.setAttribute("visibility","hidden");});
+  }
+
+  function renderTeams(){
+    const e = Object.entries(P.team_load); const max = Math.max(1,...e.map(x=>x[1]));
+    $("#teams").innerHTML = e.map(([t,n])=>`<div class="hbar" title="${esc(t)}: ${n} items"><span>${esc(t)}</span><div class="bar"><i style="width:${(100*n/max).toFixed(1)}%"></i></div><span class="num r">${n}</span></div>`).join("") || "No open items.";
+  }
+
+  function renderCompliance(){
+    $("#fw-note").textContent = "Mapped automatically from findings. Applicable for " + P.vertical + ": " + P.frameworks.slice(0,4).join(", ") + (P.frameworks.length>4?"…":"");
+    $("#compliance").innerHTML = P.compliance.map(c=>`<div class="fw"><div class="hd"><span>${esc(c.name)}</span><span class="num">${fmt(c.readiness,"%")} ready</span></div>
+      <div class="bar" style="margin-top:6px"><i style="width:${c.readiness}%"></i></div>
+      <div class="isub">${c.at_risk} controls at risk · ${c.attention} need attention · ${c.mapped} mapped</div>
+      <ul>${c.controls.filter(r=>r.status==="at_risk").slice(0,4).map(r=>`<li><span class="st at_risk">at risk</span> ${esc(r.control)} ${esc(r.name)} (${r.today} today)</li>`).join("")}</ul></div>`).join("");
+  }
+
+  function renderActions(){
+    $("#actions tbody").innerHTML = P.actions.slice(0,12).map((a,i)=>`<tr><td><b>${esc(a.title)}</b><div class="isub">${esc(a.entity)} · ${esc(a.priority)} · due in ${a.due_hours}h</div></td>
+      <td>${a.teams.map(esc).join(", ")}</td><td class="r num">${a.finding_ids.length}</td>
+      <td><button class="approve" aria-pressed="false" data-id="${esc(a.action_id)}">Approve</button></td></tr>`).join("");
+    document.querySelectorAll(".approve").forEach(b=>b.addEventListener("click",async()=>{
+      if (b.getAttribute("aria-pressed")==="true") return;
+      if (D.api) { try { const r = await fetch(`api/actions/${encodeURIComponent(b.dataset.id)}/approve?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:{"X-API-Key":store.get("lodestar.key")||""}}); if(!r.ok) throw new Error(r.status); }
+        catch(e){ b.textContent="Approval failed - check API key"; return; } }
+      b.setAttribute("aria-pressed","true"); b.textContent = D.api ? "Approved · sent to ITSM queue" : "Approved (demo, not sent)";
+    }));
+  }
+
+  if (D.order.length) load(sel.value); else document.querySelector("main").innerHTML = '<p class="empty">No pipeline results yet. Run <code>python -m lodestar run</code> first.</p>';
+})();
+</script>

@@ -1,0 +1,20 @@
+id: logistics_ports
+inherits: _default
+name: Ports, Terminals & Logistics
+description: Port operators, container terminals, free zones and logistics.
+frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, IMO MSC-FAL.1/Circ.3 (maritime cyber risk), IEC 62443, UAE IA Standards]
+regulators: [Maritime authority, National critical-infrastructure authority, Customs]
+mandatory_domains: [edr, vmdr, identity, pam, soc, ot, ztna, email, backup]
+domain_weights: {ot: 1.3, ztna: 1.2, pam: 1.2, backup: 1.2, email: 1.1}
+sla_days: {critical: 10, high: 30, medium: 60, low: 120}
+financial_exposure: {currency: USD, downtime_cost_per_hour: 1100000, cost_per_record: 150, regulatory_fine_ceiling: 10000000}
+threat_landscape:
+  - Ransomware halting terminal operating systems (TOS)
+  - Compromise of crane / gate automation (OT)
+  - Cargo-release fraud via BEC and manipulated documents
+  - Third-party shipping-line and customs integration abuse
+kris_extra:
+  - {metric: ot_unmanaged_remote_access_count, label: Unmanaged remote access to terminal OT, appetite: 0, direction: lower_better, unit: ""}
+  - {metric: backup_immutability_pct, label: Critical systems with immutable backups, appetite: 100, direction: higher_better, unit: "%"}
+crown_jewel_services: [Terminal operating system, Gate & crane automation, Customs & port community system, Vessel planning]
+terminology: {ot: Terminal OT (cranes, gates, reefers)}

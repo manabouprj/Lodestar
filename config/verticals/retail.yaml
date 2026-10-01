@@ -1,0 +1,20 @@
+id: retail
+inherits: _default
+name: Retail
+description: Omnichannel retail, malls, grocery and e-commerce.
+frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, PCI DSS v4.0.1, UAE PDPL, GDPR]
+regulators: [Card schemes, Data protection authority]
+mandatory_domains: [edr, vmdr, waf, brand, email, identity, web_proxy, dlp]
+domain_weights: {waf: 1.25, brand: 1.25, email: 1.1, dlp: 1.1, ot: 0.7}
+sla_days: {critical: 14, high: 30, medium: 60, low: 120}
+financial_exposure: {currency: USD, downtime_cost_per_hour: 350000, cost_per_record: 150, regulatory_fine_ceiling: 8000000}
+threat_landscape:
+  - E-commerce skimming (Magecart) and card data theft
+  - Gift card and loyalty fraud
+  - Fake stores and social-media brand impersonation
+  - POS malware and store network intrusion
+  - Ransomware during peak trading periods
+kris_extra:
+  - {metric: brand_takedown_hours, label: Fake store takedown time, appetite: 48, direction: lower_better, unit: " h"}
+  - {metric: waf_block_mode_pct, label: Web apps with WAF in blocking mode, appetite: 100, direction: higher_better, unit: "%"}
+crown_jewel_services: [E-commerce platform, POS estate, Loyalty platform, Supply chain & warehouse management]
