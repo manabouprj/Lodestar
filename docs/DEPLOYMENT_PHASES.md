@@ -72,4 +72,4 @@ an earlier one.
 ## Rollback
 
 Every phase is a configuration change. Lower `deployment_phase` and restart; data already
-collected is kept. Container images are versioned (`lodestar:1.2.0`).
+collected is kept. Container images are versioned (`lodestar:1.2.1`).

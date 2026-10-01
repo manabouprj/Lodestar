@@ -11,6 +11,10 @@ only a human may take, answers questions in **Slack and Microsoft Teams**, and w
 
 A lodestar is the star navigators steer by. The platform does the same job for a security team.
 
+**[▶ Open the live demo dashboard](https://manabouprj.github.io/lodestar/)** · [download it to open offline](samples/lodestar-dashboard.html) · [sample board report](samples/reports/sandline-bank-demo/2026-10-01_quarterly.md)
+
+[![LODESTAR dashboard: posture, signal funnel and Decision desk](docs/images/dashboard-overview.png)](https://manabouprj.github.io/lodestar/)
+
 ```
 1,554 signals from 21 sources ─► 942 open ─► 203 this week ─► 28 today ─► 20 attack paths ─► 25 decisions for people
                                  (Sandline Bank, fictional demo, banking profile)
@@ -75,7 +79,25 @@ Only an approved verdict releases a ticket to ITSM, and ITSM starts in dry-run m
 ## The dashboard
 
 The dashboard is dark-first, built for 24x7 operations rooms, with TLP marking and local/UTC
-clocks. A light theme is available.
+clocks. A light theme is available. It is a single self-contained page: served by the API in
+production, or exported as one HTML file for presentations and air-gapped reviews. The live demo
+uses fictional data only.
+
+| Decision desk | Focus queue and attack paths |
+|---|---|
+| What needs a human now, who decides, by when, and what the agents will not do<br>![Decision desk](docs/images/decision-desk.png) | Every item explains why it is on the list<br>![Focus queue](docs/images/focus-queue.png) |
+| **External reports & intelligence:** HackerOne reports and CERT/ISAC/PSIRT advisories, filtered to what touches us<br>![External reports and intelligence](docs/images/external-intel.png) | **Ask LODESTAR, and fraud & financial crime:** the same agent answers in Slack and Teams<br>![Chat and fraud](docs/images/chat-and-fraud.png) |
+| **KRIs against appetite and control assurance**<br>![KRIs and controls](docs/images/kris-controls.png) | **Critical infrastructure:** an ICS advisory matched to 20 PLCs, HMIs and RTUs at a utility<br>![Utility intelligence](docs/images/external-intel-utility.png) |
+
+<details>
+<summary>Light theme and phone layout</summary>
+
+![Light theme](docs/images/overview-light.png)
+
+<img src="docs/images/mobile.png" alt="Phone layout" width="300">
+</details>
+
+What the dashboard shows, top to bottom:
 
 1. **Posture and signal funnel:** posture vs appetite, data-trust confidence, and the funnel from tool noise to today's focus.
 2. **Decision desk:** decisions waiting on people, grouped Now / Today / This week, filterable by decider role.
@@ -230,7 +252,7 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 | [CHATOPS.md](docs/CHATOPS.md) | Slack and Teams setup, roles in chat |
 | [FRAUD_MANAGEMENT.md](docs/FRAUD_MANAGEMENT.md) | Cyber-enabled fraud for financial institutions |
 | [EXTERNAL_INTEL.md](docs/EXTERNAL_INTEL.md) | Bug bounty, CERT/ISAC/PSIRT feeds, advisory e-mail, TLP, critical-infrastructure notification |
-| [GITHUB_SETUP.md](docs/GITHUB_SETUP.md) | Pushing the repository to GitHub from Windows |
+| [GITHUB_SETUP.md](docs/GITHUB_SETUP.md) | Pushing to GitHub from Windows, publishing the demo dashboard on GitHub Pages |
 | [SCORING_MODEL.md](docs/SCORING_MODEL.md) | How priorities are calculated |
 | [DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md) | Rollout plan and exit criteria |
 | [CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md) | Connecting products |
@@ -240,7 +262,7 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 1.2.0. Planned next: native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz,
+Version 1.2.1. Planned next: native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz,
 Cloudflare, Feedzai and Bugcrowd; a PostgreSQL store for multi-entity HA; in-app OIDC; and a full Teams bot
 with card actions. Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md).
 

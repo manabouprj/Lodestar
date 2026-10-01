@@ -1,7 +1,11 @@
 # Push LODESTAR to GitHub (Windows)
 
-The download is a complete Git repository: the commit history and the `v1.2.0` tag are already
+The download is a complete Git repository with the commit history and version tags already
 inside. You only need to unpack it, point it at a GitHub repository and push.
+
+* **First time?** Follow steps 1 to 5.
+* **Already pushed an earlier version?** Go to [Update an existing GitHub repository](#update-an-existing-github-repository).
+* **Want the dashboard visible on GitHub?** Go to [Show the dashboard on GitHub](#show-the-dashboard-on-github).
 
 ## 1. One-time tools
 
@@ -18,12 +22,12 @@ Close and reopen PowerShell so the new commands are on your PATH. Check with `gi
 ## 2. Unpack the download
 
 ```powershell
-$zip = "$env:USERPROFILE\Downloads\lodestar-v1.2.0.zip"
+$zip = "$env:USERPROFILE\Downloads\lodestar-v1.2.1.zip"
 Unblock-File $zip                                   # removes the "downloaded from internet" flag so scripts run
 New-Item -ItemType Directory -Force C:\Projects | Out-Null
 Expand-Archive $zip -DestinationPath C:\Projects -Force
 cd C:\Projects\lodestar
-git log --oneline                                   # you should see the LODESTAR v1.0.0 / v1.1.0 / v1.2.0 commits
+git log --oneline                                   # you should see the LODESTAR v1.0.0 ... v1.2.1 commits
 ```
 
 Use a short path outside OneDrive (for example `C:\Projects`) to avoid sync conflicts and
@@ -62,7 +66,76 @@ needs to be pasted.
 * **Code** tab: README renders with the architecture diagram.
 * **Actions** tab: the `ci` workflow runs lint, 47 tests, `validate`, the demo build and a Docker
   build/smoke test. Download the `demo-dashboard-and-reports` artifact from the run.
-* **Releases**: optionally create a release from tag `v1.2.0` and attach `samples/lodestar-dashboard.html`.
+* **Releases**: optionally create a release from tag `v1.2.1` and attach `samples/lodestar-dashboard.html`.
+
+## Update an existing GitHub repository
+
+If you already pushed v1.2.0 (or earlier), the new download contains the same history plus the
+new commit, so the push is a simple fast-forward.
+
+**Option A - keep your existing folder** (recommended if you have local changes):
+
+```powershell
+cd C:\Projects\lodestar                             # your existing clone
+git status                                         # commit or stash anything you changed first
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.2.1.zip" -DestinationPath C:\Temp\lodestar-new -Force
+git fetch C:\Temp\lodestar-new\lodestar main --tags     # bring in the new commit from the unpacked copy
+git merge --ff-only FETCH_HEAD
+git push origin main --tags
+```
+
+**Option B - replace the folder:**
+
+```powershell
+Rename-Item C:\Projects\lodestar lodestar-old
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.2.1.zip" -DestinationPath C:\Projects -Force
+cd C:\Projects\lodestar
+git remote add origin https://github.com/manabouprj/lodestar.git
+git push origin main --tags
+```
+
+If Git says `rejected (non-fast-forward)`, someone changed GitHub directly (for example by editing
+the README in the browser). Run `git pull --rebase origin main`, then push again.
+
+## Show the dashboard on GitHub
+
+There are two ways, and you can use both.
+
+**1. Screenshots in the README (works on every plan, private or public).**
+The README already embeds the images in `docs/images/`. They render as soon as you push. To
+refresh them after changing the dashboard:
+
+```powershell
+pip install playwright pillow
+python -m playwright install chromium
+python -m lodestar demo
+python scripts\readme_screenshots.py
+git add docs/images
+git commit -m "Refresh dashboard screenshots"
+git push
+```
+
+**2. A live, clickable demo on GitHub Pages.**
+The workflow `.github/workflows/pages.yml` builds the demo (fictional data only) and publishes
+it with the sample reports.
+
+1. GitHub → your repository → **Settings → Pages**.
+2. Under *Build and deployment*, set **Source: GitHub Actions**.
+3. **Actions** tab → **demo-dashboard** → **Run workflow** (it also runs automatically on every push
+   to `main` that changes the code or config).
+4. When the run finishes, the dashboard is at `https://manabouprj.github.io/lodestar/` and the
+   reports are under `/reports/`. The README's *Open the live demo dashboard* link already points
+   there. Edit that link if your repository or user name differs.
+
+Pages on a **private** repository needs GitHub Pro, Team or Enterprise. On the free plan, either
+keep the repository private and rely on the screenshots (plus the downloadable
+`samples/lodestar-dashboard.html`), or publish only the demo from a separate public repository.
+The Pages workflow always runs `lodestar demo`, so real findings can never be published by it.
+Never change it to a live configuration.
+
+**3. Attach the dashboard to a release (optional).** **Releases → Draft a new release → tag
+`v1.2.1`**, attach `samples/lodestar-dashboard.html` and the quarterly report. Viewers download
+the file and open it in any browser.
 
 ## 5. Recommended repository settings
 
@@ -88,7 +161,7 @@ git commit -m "Add Bugcrowd adapter"
 git push -u origin feature/new-connector        # then open a pull request on GitHub
 ```
 
-Release: `git tag v1.3.0` then `git push origin --tags`.
+Release: `git tag -a v1.3.0 -m "LODESTAR v1.3.0"` then `git push origin --tags`.
 
 ## Troubleshooting
 
@@ -99,4 +172,6 @@ Release: `git tag v1.3.0` then `git push origin --tags`.
 | `! [rejected] main -> main (fetch first)` | The GitHub repo was created with a README. Either recreate it empty, or `git pull --rebase origin main` then push |
 | `LF will be replaced by CRLF` warnings | Harmless; `.gitattributes` keeps LF in the repository |
 | `Permission denied (publickey)` | You used an SSH URL. Use the HTTPS URL above, or set up an SSH key |
+| README images don't show | Check the paths are `docs/images/...` (case-sensitive on GitHub) and that the PNGs were committed (`git ls-files docs/images`) |
+| Pages URL shows 404 | Settings → Pages source must be **GitHub Actions**; wait for the *demo-dashboard* run to finish; private repos need a paid plan |
 | Push opens no browser | `git credential-manager configure` then retry, or install GitHub CLI and run `gh auth login` |

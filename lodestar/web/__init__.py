@@ -9,6 +9,7 @@ from typing import Any
 TEMPLATE = Path(__file__).resolve().parent / "templates" / "dashboard.html"
 SKELETON = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{head}
 </head><body>
 {body}
 </body></html>"""
@@ -25,4 +26,8 @@ def render_dashboard(payloads: list[dict[str, Any]], *, demo: bool = False, api:
             "demo": demo, "api": api}
     blob = json.dumps(data, separators=(",", ":"), default=str).replace("</", "<\\/")
     body = TEMPLATE.read_text(encoding="utf-8").replace("/*__LODESTAR_DATA__*/null", blob)
-    return SKELETON.format(body=body) if full_document else body
+    if not full_document:
+        return body
+    head = "\n".join(m.group(0) for m in re.finditer(r"<title>.*?</title>|<link [^>]*>", body.split("<style>", 1)[0]))
+    body = re.sub(r"<title>.*?</title>|<link [^>]*>", "", body.split("<style>", 1)[0], count=0) + "<style>" + body.split("<style>", 1)[1]
+    return SKELETON.replace("{head}", head).replace("{body}", body)

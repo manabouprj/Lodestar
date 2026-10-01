@@ -5,4 +5,4 @@ lint:     ; ruff check lodestar tests
 demo:     ; python -m lodestar demo
 serve:    ; python -m lodestar serve
 validate: ; python -m lodestar validate
-docker:   ; docker build -t lodestar:1.2.0 .
+docker:   ; docker build -t lodestar:1.2.1 .
