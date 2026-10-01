@@ -11,9 +11,9 @@ only a human may take, answers questions in **Slack and Microsoft Teams**, and w
 
 A lodestar is the star navigators steer by. The platform does the same job for a security team.
 
-**[▶ Open the live demo dashboard](https://manabouprj.github.io/lodestar/)** · [download it to open offline](samples/lodestar-dashboard.html) · [sample board report](samples/reports/sandline-bank-demo/2026-10-01_quarterly.md)
+**[▶ Open the live demo dashboard](https://manabouprj.github.io/Lodestar/)** · [download it to open offline](samples/lodestar-dashboard.html) · [sample board report](samples/reports/sandline-bank-demo/2026-10-01_quarterly.md)
 
-[![LODESTAR dashboard: posture, signal funnel and Decision desk](docs/images/dashboard-overview.png)](https://manabouprj.github.io/lodestar/)
+[![LODESTAR dashboard: posture, signal funnel and Decision desk](docs/images/dashboard-overview.png)](https://manabouprj.github.io/Lodestar/)
 
 ```
 1,554 signals from 21 sources ─► 942 open ─► 203 this week ─► 28 today ─► 20 attack paths ─► 25 decisions for people
