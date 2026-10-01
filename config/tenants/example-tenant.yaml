@@ -1,0 +1,40 @@
+# Example tenant file (ignored because its name starts with "example").
+# Copy to config/tenants/<your-org>.yaml - or run:  lodestar init --tenant --org "Acme Bank" --vertical banking --siem sentinel
+# Each tenant file is merged over config/lodestar.yaml (mode must be live). `connectors` is NOT merged:
+# declare every connector this organisation uses. Use tenant-specific env variable names for credentials.
+org:
+  name: Acme Bank
+  vertical: banking
+assets:
+  path: config/assets-acme-bank.csv
+identity:
+  path: config/identities-acme-bank.csv
+  primary_domain: acme.example
+threat_hunt:
+  enabled: true
+  provider: sentinel
+  settings:
+    workspace_id: ${ACME_SENTINEL_WORKSPACE_ID}
+    tenant_id: ${ACME_AZ_TENANT_ID}
+    client_id: ${ACME_AZ_CLIENT_ID}
+    client_secret: ${ACME_AZ_CLIENT_SECRET}
+connectors:
+  edr:
+    adapter: sentinel
+    product: Defender for Endpoint via Sentinel
+    settings:
+      workspace_id: ${ACME_SENTINEL_WORKSPACE_ID}
+      tenant_id: ${ACME_AZ_TENANT_ID}
+      client_id: ${ACME_AZ_CLIENT_ID}
+      client_secret: ${ACME_AZ_CLIENT_SECRET}
+      query: |
+        SecurityAlert
+        | where TimeGenerated > datetime({since})
+        | where ProductName has_any ("Defender for Endpoint", "Defender Advanced Threat Protection")
+        | summarize arg_max(TimeGenerated, *) by SystemAlertId
+        | project TimeGenerated, SystemAlertId, AlertName, AlertSeverity, CompromisedEntity, Status
+      field_map: {finding_id: SystemAlertId, title: AlertName, severity: AlertSeverity, asset_id: CompromisedEntity,
+                  status: Status, first_seen: TimeGenerated}
+  waf:
+    adapter: webhook          # push to /api/ingest/waf?org=acme-bank, signed with LODESTAR_WEBHOOK_SECRET_ACME_BANK
+    product: Cloudflare WAF

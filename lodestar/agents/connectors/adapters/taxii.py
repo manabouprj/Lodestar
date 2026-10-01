@@ -69,6 +69,7 @@ def parse_bundle(objects: list[dict], source: str) -> list:
 
 class TaxiiAdapter(Adapter):
     name = "taxii"
+    sync_mode = "incremental"
     supported_domains = (Domain.THREAT_INTEL,)
 
     def fetch(self, ctx) -> AdapterResult:

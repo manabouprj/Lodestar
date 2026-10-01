@@ -116,6 +116,7 @@ section{margin-top:28px}
 .st.within,.st.healthy,.st.on_track{background:var(--good-bg);color:var(--good)} .st.within::before,.st.healthy::before,.st.on_track::before{content:"●"}
 .st.near,.st.degraded,.st.attention{background:var(--warn-bg);color:var(--warn)} .st.near::before,.st.degraded::before,.st.attention::before{content:"▲"}
 .st.breach,.st.failing,.st.at_risk,.st.stale{background:var(--crit-bg);color:var(--crit)} .st.breach::before,.st.failing::before,.st.at_risk::before,.st.stale::before{content:"■"}
+.kri-src{font-size:11px;color:var(--ink-3);margin-top:2px}
 .st.no_data{background:var(--panel-2);color:var(--ink-3)}
 
 /* tables */
@@ -374,6 +375,9 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-3);display:grid;gap:4px}
 </main>
 
 <script>
+  // session cookie + double-submit CSRF token (lodestar_csrf cookie -> X-CSRF-Token header) on every POST
+  function hdrs(extra){ const m=document.cookie.match(/(?:^|; )lodestar_csrf=([^;]+)/);
+    return Object.assign({}, extra||{}, m?{"X-CSRF-Token":decodeURIComponent(m[1])}:{}); }
 const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
 (function(){
   const D = LODESTAR_DATA || {orgs:{}, order:[]};
@@ -413,7 +417,8 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
     const cls = v => v==null?"":(v>=0?"delta-up":"delta-down");
     $("#posture-meta").innerHTML = `<div>Risk appetite <b class="num">${P.appetite}</b></div>
       <div>7 days <b class="num ${cls(P.posture_d7)}">${signed(P.posture_d7)}</b> · 30 days <b class="num ${cls(P.posture_d30)}">${signed(P.posture_d30)}</b></div>
-      <div>Data trust <b class="num">${fmt(P.data_quality.trust_score)}</b> · Phase <b class="num">${P.data_quality.phase}</b></div>
+      <div>Data trust <b class="num">${fmt(P.data_quality.trust_score)}</b> · Phase <b class="num">${P.data_quality.phase}</b>${P.kri_coverage!=null?` · KRIs measured <b class="num">${fmt(P.kri_coverage,"%")}</b>`:""}</div>
+      ${P.posture_provisional ? `<div><span class="st near">provisional</span> too few indicators measured to rely on this score yet</div>` : ""}
       ${P.data_quality.confidence && P.data_quality.confidence!=="high" ? `<div><span class="st ${P.data_quality.confidence==="low"?"breach":"near"}">${P.data_quality.confidence} confidence</span> ${(P.data_quality.mandatory_controls_missing||[]).length} mandatory feed(s) missing</div>` : ""}`;
     $("#posture-spark").innerHTML = spark(P.trend.slice(-90).map(t=>t.posture), 320, 54, {ref:P.appetite, label:"Posture, last 90 days, dashed line is appetite"});
     // funnel
@@ -485,11 +490,11 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
   function renderKRIs(){
     $("#kri tbody").innerHTML = P.kris.map(k=>{
       const better = k.delta30==null?null:((k.delta30>0)===(k.direction==="higher_better"));
-      return `<tr><td>${esc(k.label)}</td><td class="r num">${fmt(k.value,k.unit)}</td>
+      return `<tr><td>${esc(k.label)}${k.source?`<div class="kri-src">${esc(k.source)}</div>`:""}</td><td class="r num">${k.value==null?"not measured":fmt(k.value,k.unit)}</td>
       <td class="r num">${k.direction==="higher_better"?"≥":"≤"} ${fmt(k.appetite,k.unit)}</td>
       <td class="r num ${better==null||k.delta30===0?"":(better?"delta-up":"delta-down")}">${signed(k.delta30)}</td>
       <td>${spark(k.spark,120,28,{label:k.label+" 90-day trend"})}</td>
-      <td><span class="st ${k.status}">${k.status.replace("_"," ")}</span></td></tr>`;}).join("");
+      <td><span class="st ${k.status}">${k.status==="no_data"?"not measured":k.status.replace("_"," ")}</span></td></tr>`;}).join("");
   }
 
   function renderControls(){
@@ -547,7 +552,7 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
       <td><button class="approve" aria-pressed="false" data-id="${esc(a.action_id)}">Approve</button></td></tr>`).join("");
     document.querySelectorAll(".approve").forEach(b=>b.addEventListener("click",async()=>{
       if (b.getAttribute("aria-pressed")==="true") return;
-      if (D.api) { try { const r = await fetch(`api/actions/${encodeURIComponent(b.dataset.id)}/approve?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:{"X-API-Key":store.get("lodestar.key")||""}}); if(!r.ok) throw new Error(r.status); }
+      if (D.api) { try { const r = await fetch(`api/actions/${encodeURIComponent(b.dataset.id)}/approve?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:hdrs()}); if(!r.ok) throw new Error(r.status); }
         catch(e){ b.textContent="Approval failed - check API key"; return; } }
       b.setAttribute("aria-pressed","true"); b.textContent = D.api ? "Approved · sent to ITSM queue" : "Approved (demo, not sent)";
     }));
@@ -592,7 +597,7 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
   async function decide(id, choice, btn){
     const status = /^(reject|close as false|release)/i.test(choice)?"rejected":/^escalate/i.test(choice)?"escalated":/^(monitor|defer|investigate further|schedule)/i.test(choice)?"deferred":"approved";
     if (D.api){
-      try{ const r = await fetch(`api/decisions/${encodeURIComponent(id)}?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({choice})});
+      try{ const r = await fetch(`api/decisions/${encodeURIComponent(id)}?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:hdrs({"Content-Type":"application/json"}),body:JSON.stringify({choice})});
         const j = await r.json(); if(!r.ok) throw new Error(j.detail||r.status); local[id]={status:j.status,choice:j.choice,decided_by:j.role}; }
       catch(e){ if(btn){btn.textContent="Not recorded: "+e.message;} return; }
     } else local[id]={status,choice,decided_by:"you"};
@@ -666,7 +671,7 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
   function renderChatButtons(){ document.querySelectorAll("#chatlog .opt").forEach(b=>{ const v=local[b.dataset.d]; if(v){ b.disabled=true; b.textContent="✓ "+v.choice; } }); }
   async function ask(q){
     addMe(q);
-    if (D.api){ try{ const r=await fetch(`api/chat/ask?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:q})}); botMsg(await r.json()); return; }catch(e){} }
+    if (D.api){ try{ const r=await fetch(`api/chat/ask?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:hdrs({"Content-Type":"application/json"}),body:JSON.stringify({text:q})}); botMsg(await r.json()); return; }catch(e){} }
     const hit = (P.chat||[]).find(c=>c.q.toLowerCase()===q.toLowerCase()) || (P.chat||[]).find(c=>q.toLowerCase().includes(c.q.split(" ")[0]));
     botMsg(hit || {title:"Offline demo", lines:["This exported dashboard answers the suggested questions. Connected to the API, Slack or Teams, the agent answers any question about priorities, decisions, teams, controls and fraud."], buttons:[]});
   }

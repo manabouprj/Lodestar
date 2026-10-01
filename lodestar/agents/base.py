@@ -28,6 +28,8 @@ class AgentContext:
     dataset: dict[str, Any] | None = None   # demo dataset (mode=demo)
     store: Any = None                        # lodestar.store.Store
     audit: list[dict[str, Any]] = field(default_factory=list)
+    dry_run: bool = False                    # True = do not write cursors / connector state (tests, previews)
+    force: bool = False                      # True = ignore connector intervals
 
     def record(self, agent: str, event: str, **details: Any) -> None:
         entry = {"ts": datetime.utcnow().isoformat() + "Z", "agent": agent, "event": event, **details}
@@ -47,6 +49,9 @@ class PipelineState:
     actions: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[dict[str, Any]] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
+    lifecycle: dict[str, Any] = field(default_factory=dict)
+    identities: list[Any] = field(default_factory=list)      # lodestar.entities.Identity
+    resolver: Any = None                                     # lodestar.entities.EntityResolver
 
 
 class BaseAgent:

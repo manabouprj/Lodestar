@@ -111,7 +111,10 @@ class Asset(BaseModel):
     criticality: int = Field(3, ge=1, le=5)  # 5 = crown jewel
     exposure: Exposure = Exposure.INTERNAL
     tags: list[str] = Field(default_factory=list)          # e.g. vendor:siemens, product:s7-1500, sector:energy
-    aliases: list[str] = Field(default_factory=list)       # hostnames, FQDNs, URLs, IPs used by external reports
+    aliases: list[str] = Field(default_factory=list)       # hostnames, FQDNs, URLs, *.wildcards used by tools and reports
+    ips: list[str] = Field(default_factory=list)
+    macs: list[str] = Field(default_factory=list)
+    external_ids: list[str] = Field(default_factory=list)  # e.g. EDR device ids, cloud resource ids / ARNs
     data_classification: str = "internal"   # public, internal, confidential, restricted
 
 
@@ -203,6 +206,10 @@ class DailySnapshot(BaseModel):
     control_effectiveness: dict[str, float] = Field(default_factory=dict)
     kris: dict[str, float] = Field(default_factory=dict)
     incidents: int = 0
+    kri_sources: dict[str, str] = Field(default_factory=dict)   # metric -> connector:<domain> | lodestar:* | manual: ...
+    kri_coverage_pct: Optional[float] = None                    # share of the profile's KRIs actually measured
+    kri_missing: list[str] = Field(default_factory=list)
+    posture_provisional: bool = False                           # too little measured data to trust the score
 
 
 class PipelineResult(BaseModel):

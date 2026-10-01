@@ -1,0 +1,259 @@
+# ---------------------------------------------------------------------------
+# LODESTAR integration catalogue - ready-made connector settings per control domain.
+#
+# `lodestar init` copies from here into your config; you can also paste a block by hand.
+# Each domain offers up to four templates, in the order init prefers them:
+#   sentinel  - one KQL query against the Log Analytics workspace your SIEM already fills (read-only)
+#   splunk    - one SPL search against Splunk / Splunk ES (read-only)
+#   native    - a vendor API adapter shipped with LODESTAR
+#   file_drop - a scheduled CSV / JSON export dropped into a folder (works for anything)
+#
+# These are STARTING POINTS. Table and column names differ between connectors and vendor versions:
+# run `lodestar test-connector <domain>` and adjust the query / field_map until the counts match the
+# console. {since} (ISO time) and {since_epoch} make a query incremental (cursor kept per source);
+# without them the query must return the complete current set (snapshot).
+# ---------------------------------------------------------------------------
+
+edr:
+  title: Endpoint detection & response
+  sentinel:
+    product: Defender for Endpoint / EDR via Sentinel
+    query: |
+      SecurityAlert
+      | where TimeGenerated > datetime({since})
+      | where ProductName has_any ("Defender for Endpoint", "Defender Advanced Threat Protection", "CrowdStrike", "SentinelOne")
+      | summarize arg_max(TimeGenerated, *) by SystemAlertId
+      | project TimeGenerated, SystemAlertId, AlertName, AlertSeverity, CompromisedEntity, Status, Tactics, ProductName
+    field_map: {finding_id: SystemAlertId, title: AlertName, severity: AlertSeverity, asset_id: CompromisedEntity,
+                status: Status, first_seen: TimeGenerated, last_seen: TimeGenerated}
+    evidence_fields: [Tactics, ProductName]
+    health_query: |
+      DeviceInfo
+      | where TimeGenerated > ago(7d)
+      | summarize arg_max(TimeGenerated, OnboardingStatus, SensorHealthState) by DeviceId
+      | summarize coverage_pct = round(100.0 * countif(OnboardingStatus == "Onboarded") / count(), 1),
+                  sensors_stale = countif(SensorHealthState != "Active")
+  splunk:
+    product: CrowdStrike Falcon via Splunk
+    search: |
+      index=edr sourcetype="CrowdStrike:Event:Streams:JSON" metadata.eventType=DetectionSummaryEvent _time>{since_epoch}
+      | rename event.* as *
+      | table _time DetectId DetectName SeverityName ComputerName UserName Tactic
+    field_map: {finding_id: DetectId, title: DetectName, severity: SeverityName, asset_id: ComputerName,
+                user_id: UserName, first_seen: _time}
+  native:
+    adapter: ms_graph_security
+    product: Microsoft Defender for Endpoint
+    settings: {tenant_id: "${AZ_TENANT_ID}", client_id: "${AZ_CLIENT_ID}", client_secret: "${AZ_CLIENT_SECRET}"}
+    permission: Microsoft Graph application permission SecurityAlert.Read.All (admin consent)
+  file_drop:
+    field_map: {finding_id: alert_id, title: alert_name, severity: severity, asset_id: hostname, user_id: user, first_seen: created}
+
+identity:
+  title: Identity & access
+  sentinel:
+    product: Entra ID Protection via Sentinel
+    query: |
+      AADRiskyUsers
+      | summarize arg_max(TimeGenerated, *) by Id
+      | where RiskState in ("atRisk", "confirmedCompromised")
+      | extend Title = strcat("Risky user: ", RiskDetail, " (", RiskState, ")")
+      | project Id, Title, RiskLevel, UserPrincipalName, RiskLastUpdatedDateTime
+    field_map: {finding_id: Id, title: Title, severity: RiskLevel, user_id: UserPrincipalName, first_seen: RiskLastUpdatedDateTime}
+    finding_type: exposure
+  native:
+    adapter: entra_identity_protection
+    product: Microsoft Entra ID
+    settings: {tenant_id: "${AZ_TENANT_ID}", client_id: "${AZ_CLIENT_ID}", client_secret: "${AZ_CLIENT_SECRET}"}
+    permission: IdentityRiskyUser.Read.All, UserAuthenticationMethod.Read.All, AuditLog.Read.All (application, admin consent)
+    note: the native adapter also reports MFA registration coverage (the mfa_coverage_pct KRI)
+  file_drop:
+    field_map: {finding_id: id, title: risk_event, severity: risk_level, user_id: upn, first_seen: detected}
+
+soc:
+  title: SIEM / SOC incidents
+  sentinel:
+    product: Microsoft Sentinel incidents
+    query: |
+      SecurityIncident
+      | summarize arg_max(TimeGenerated, *) by IncidentNumber
+      | where Status != "Closed"
+      | project IncidentNumber, Title, Severity, Status, CreatedTime, Owner = tostring(Owner.assignedTo)
+    field_map: {finding_id: IncidentNumber, title: Title, severity: Severity, status: Status, first_seen: CreatedTime}
+    finding_type: incident
+    health_query: |
+      SecurityIncident
+      | where CreatedTime > ago(30d)
+      | summarize arg_max(TimeGenerated, *) by IncidentNumber
+      | extend detect_h = datetime_diff('minute', CreatedTime, FirstActivityTime) / 60.0
+      | summarize mttd_hours = round(avg(detect_h), 1), incidents_open = countif(Status != "Closed")
+  splunk:
+    product: Splunk Enterprise Security notables
+    search: |
+      index=notable _time>{since_epoch}
+      | eval status_label=coalesce(status_label, "New")
+      | table _time event_id rule_name urgency dest user status_label
+    field_map: {finding_id: event_id, title: rule_name, severity: urgency, asset_id: dest, user_id: user,
+                status: status_label, first_seen: _time}
+    finding_type: incident
+
+email:
+  title: Email security
+  sentinel:
+    product: Defender for Office 365 via Sentinel
+    query: |
+      SecurityAlert
+      | where TimeGenerated > datetime({since})
+      | where ProductName has "Office 365"
+      | summarize arg_max(TimeGenerated, *) by SystemAlertId
+      | extend Recipient = tostring(parse_json(Entities)[0].Upn)
+      | project TimeGenerated, SystemAlertId, AlertName, AlertSeverity, Recipient, Status
+    field_map: {finding_id: SystemAlertId, title: AlertName, severity: AlertSeverity, user_id: Recipient,
+                status: Status, first_seen: TimeGenerated}
+    health_query: |
+      UrlClickEvents
+      | where TimeGenerated > ago(30d) and Workload == "Email"
+      | summarize clicks = countif(ActionType == "ClickAllowed"), blocked = countif(ActionType == "ClickBlocked")
+      | extend user_clicks = clicks
+      | project user_clicks, phish_blocked = blocked
+  native:
+    adapter: ms_graph_security
+    product: Microsoft Defender for Office 365
+    settings: {tenant_id: "${AZ_TENANT_ID}", client_id: "${AZ_CLIENT_ID}", client_secret: "${AZ_CLIENT_SECRET}"}
+    permission: SecurityAlert.Read.All
+  note: phishing_click_rate_pct usually comes from the awareness platform - add it under kpis_manual
+
+vmdr:
+  title: Vulnerability management
+  native:
+    adapter: tenable_vm
+    product: Tenable Vulnerability Management
+    settings: {access_key: "${TENABLE_ACCESS_KEY}", secret_key: "${TENABLE_SECRET_KEY}", severities: [critical, high]}
+    permission: API keys of a Basic user with Can View on the relevant asset groups
+  file_drop:
+    product: Qualys VMDR (scheduled CSV report)
+    field_map: {title: Title, severity: Severity, asset_id: DNS, cve: CVE ID, first_seen: First Detected,
+                last_seen: Last Detected, status: Vuln Status, remediation: Solution, ip: IP}
+    severity_map: {"5": critical, "4": high, "3": medium, "2": low, "1": info}
+    status_map: {active: open, new: open, re-opened: open, fixed: resolved}
+    finding_type: vulnerability
+    health: {kpis: {}}
+    note: Qualys has no "coverage" in the export - set health.coverage_pct from the scan-coverage dashboard, or use kpis_manual
+
+cloud:
+  title: Cloud security posture
+  sentinel:
+    product: Defender for Cloud recommendations via Sentinel
+    query: |
+      SecurityRecommendation
+      | summarize arg_max(TimeGenerated, *) by RecommendationName, AssessedResourceId
+      | where RecommendationState == "Unhealthy" and RecommendationSeverity in ("High", "Medium")
+      | extend Id = hash_sha256(strcat(RecommendationName, AssessedResourceId))
+      | project Id, RecommendationName, RecommendationSeverity, AssessedResourceId, FirstEvaluationDate
+    field_map: {finding_id: Id, title: RecommendationName, severity: RecommendationSeverity, asset_id: AssessedResourceId,
+                first_seen: FirstEvaluationDate}
+    finding_type: misconfiguration
+  native:
+    adapter: ms_graph_security
+    product: Microsoft Defender for Cloud (alerts)
+    settings: {tenant_id: "${AZ_TENANT_ID}", client_id: "${AZ_CLIENT_ID}", client_secret: "${AZ_CLIENT_SECRET}"}
+  file_drop:
+    product: Wiz / Prisma Cloud issues export
+    field_map: {finding_id: Issue ID, title: Title, severity: Severity, asset_id: Resource external ID, status: Status,
+                first_seen: Created At}
+    finding_type: misconfiguration
+
+firewall:
+  title: Firewall
+  file_drop:
+    product: Firewall policy analyser export (Tufin / AlgoSec / Panorama BPA)
+    field_map: {title: rule_issue, severity: risk, asset_id: device, first_seen: detected}
+    finding_type: misconfiguration
+    note: rule hygiene is a posture problem - export from the policy analyser weekly
+  sentinel:
+    product: NGFW threat events via Sentinel (CEF)
+    query: |
+      CommonSecurityLog
+      | where TimeGenerated > datetime({since})
+      | where DeviceVendor in ("Palo Alto Networks", "Fortinet", "Check Point") and LogSeverity in ("8", "9", "10", "High", "Critical")
+      | summarize FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated), Hits = count()
+          by DeviceVendor, Activity, SourceIP, DestinationIP, DeviceName
+      | extend Id = hash_sha256(strcat(Activity, SourceIP, DestinationIP)), Sev = "high"
+    field_map: {finding_id: Id, title: Activity, severity: Sev, asset_id: DestinationIP, first_seen: FirstSeen, last_seen: LastSeen}
+    cursor_column: LastSeen
+
+waf:
+  title: Web application firewall
+  sentinel:
+    product: Azure Application Gateway / Front Door WAF via Sentinel
+    query: |
+      AGWFirewallLogs
+      | where TimeGenerated > datetime({since})
+      | where Action in ("Matched", "Detected")
+      | summarize FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated), Hits = count() by RuleId, Message, Hostname
+      | extend Id = hash_sha256(strcat(RuleId, Hostname)), Sev = iff(Hits > 100, "high", "medium")
+    field_map: {finding_id: Id, title: Message, severity: Sev, asset_id: Hostname, first_seen: FirstSeen, last_seen: LastSeen}
+    cursor_column: LastSeen
+    note: matched-but-not-blocked rules show where the WAF is in detection mode on a live attack
+  webhook:
+    product: Cloudflare WAF (Workers / Logpush to webhook)
+
+web_proxy:
+  title: Secure web gateway
+  sentinel:
+    product: Zscaler Internet Access via Sentinel (CEF)
+    query: |
+      CommonSecurityLog
+      | where TimeGenerated > datetime({since}) and DeviceVendor == "Zscaler"
+      | where DeviceAction in ("Allowed", "allowed") and (Activity has_any ("Malware", "Phishing", "Botnet") or DeviceCustomString5 has_any ("Malware", "Phishing"))
+      | summarize FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated), Hits = count() by SourceUserName, RequestURL, Activity
+      | extend Id = hash_sha256(strcat(SourceUserName, RequestURL)), Sev = "high"
+    field_map: {finding_id: Id, title: Activity, severity: Sev, user_id: SourceUserName, first_seen: FirstSeen, last_seen: LastSeen}
+    evidence_fields: [RequestURL]
+    cursor_column: LastSeen
+  file_drop:
+    field_map: {title: threat_name, severity: risk, user_id: user, asset_id: device, first_seen: time}
+
+pam:
+  title: Privileged access
+  file_drop:
+    product: CyberArk / BeyondTrust / Delinea compliance report
+    field_map: {title: EventName, severity: Risk, user_id: TargetUser, asset_id: TargetMachine, first_seen: Timestamp}
+    severity_map: {"5": critical, "4": high, "3": medium}
+    finding_type: policy_violation
+    note: put vaulted_pct and standing_admins in health.kpis (from the PAM dashboard) or kpis_manual
+
+threat_intel:
+  title: Threat intelligence feeds
+  native:
+    sources:
+      - {adapter: taxii, product: National CERT TAXII, settings: {api_root: "${CERT_TAXII_API_ROOT}", collection_id: "${CERT_TAXII_COLLECTION}", api_token: "${CERT_TAXII_TOKEN}", lookback_days: 7}}
+      - {adapter: misp, product: Sector ISAC MISP, settings: {base_url: "${ISAC_MISP_URL}", api_key: "${ISAC_MISP_KEY}", lookback: 7d}}
+      - {adapter: csaf, product: CISA ICS advisories (CSAF), settings: {path: data/drop/csaf}}
+      - {adapter: mailbox, product: Advisory mailbox, settings: {mode: path, path: data/drop/mail, require_dkim: true, senders: [{match: "@cert.example", kind: advisory, source: National CERT}]}}
+
+bug_bounty:
+  title: Bug bounty / VDP
+  native:
+    sources:
+      - {adapter: hackerone, product: HackerOne, settings: {api_identifier: "${H1_API_IDENTIFIER}", api_token: "${H1_API_TOKEN}", program_handle: "${H1_PROGRAM}"}}
+      - {adapter: webhook, product: HackerOne webhooks}
+
+fraud:
+  title: Fraud & financial crime
+  webhook:
+    product: Fraud engine / case manager (Feedzai, Actimize, SAS) pushing alerts + KPIs
+    note: push detection_rate_pct, alert_backlog_hours, channel_coverage_pct, confirmed_loss_30d in the health block
+
+ot:
+  title: OT / ICS visibility
+  file_drop:
+    product: Claroty / Nozomi / Dragos alert export
+    field_map: {finding_id: alert_id, title: alert_title, severity: severity, asset_id: asset_name, first_seen: detected_at}
+    note: put unmanaged_remote_access and ot_assets_visible_pct in health.kpis
+
+# Everything else (sast, dast, brand, ai_security, dlp, backup): file_drop or webhook with a field_map.
+_generic:
+  file_drop:
+    field_map: {finding_id: id, title: title, severity: severity, asset_id: asset, user_id: user, first_seen: first_seen}
+  webhook: {}

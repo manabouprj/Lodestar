@@ -2,15 +2,15 @@
  Push LODESTAR to GitHub from Windows.
 
  Usage (from the repository folder):
-   powershell -ExecutionPolicy Bypass -File scripts\push-to-github.ps1 -Owner manabouprj -Repo lodestar
-   powershell -ExecutionPolicy Bypass -File scripts\push-to-github.ps1 -Owner manabouprj -Repo lodestar -Public
+   powershell -ExecutionPolicy Bypass -File scripts\push-to-github.ps1 -Owner manabouprj -Repo Lodestar
+   powershell -ExecutionPolicy Bypass -File scripts\push-to-github.ps1 -Owner manabouprj -Repo Lodestar -Public
 
  Uses GitHub CLI (gh) when installed - it creates the repository for you.
  Without gh, create an EMPTY repository on github.com first (no README / licence / .gitignore).
 #>
 param(
   [Parameter(Mandatory = $true)][string]$Owner,
-  [string]$Repo = "lodestar",
+  [string]$Repo = "Lodestar",
   [switch]$Public
 )
 $ErrorActionPreference = "Stop"

@@ -118,7 +118,8 @@ class ThreatIntelAgent(BaseAgent):
             ev = f.evidence
             cves = {c.upper() for c in ev.get("cves", []) or ([f.cve] if f.cve else [])}
             m_cve = sorted(cves & set(estate_cves))
-            m_ioc = sorted(set(ev.get("iocs", [])) & telemetry_iocs)
+            ioc_list = [str(i).lower() for i in (ev.get("iocs") or [])] + ([str(ev["ioc"]).lower()] if ev.get("ioc") else [])
+            m_ioc = sorted(set(ioc_list) & telemetry_iocs)
             prods = [p for p in ev.get("products", []) if p.startswith("product:")]
             m_assets = sorted({a for p in prods for a in by_tag.get(p, [])})
             s_hit = sorted(set(ev.get("sectors", [])) & sectors)
@@ -129,7 +130,7 @@ class ThreatIntelAgent(BaseAgent):
             tags = list(dict.fromkeys(ev.get("tags", []) + ["relevant"] + (["sector_targeted"] if s_hit else [])))
             ev["tags"] = tags
             ev.update({"matched_cves": m_cve, "matched_iocs": m_ioc, "matched_assets": m_assets[:50], "matched_sectors": s_hit})
-            f.entity_keys += [f"cve:{c}" for c in cves] + [f"ioc:{i}" for i in ev.get("iocs", [])[:200]]
+            f.entity_keys += [f"cve:{c}" for c in cves] + [f"ioc:{i}" for i in ioc_list[:200]]
             if m_ioc:
                 sightings += 1
                 tags.append("sighted")

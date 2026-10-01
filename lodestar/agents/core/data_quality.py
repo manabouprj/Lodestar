@@ -9,40 +9,10 @@
 """
 from __future__ import annotations
 
-import re
-
+from ...entities import EntityResolver, norm_host  # noqa: F401  (norm_host re-exported for compatibility)
 from ...models import Domain
 from ..base import AgentContext, BaseAgent, PipelineState
 from .asset_context import asset_match_rate
-
-
-def norm_host(value: str) -> str:
-    v = value.strip().lower()
-    v = re.sub(r"^[a-z][a-z0-9+.-]*://", "", v)       # scheme
-    v = v.split("/", 1)[0].split("@")[-1]              # path, credentials
-    v = re.sub(r":\d+$", "", v)                         # port
-    return v[4:] if v.startswith("www.") else v
-
-
-def alias_index(assets: dict) -> tuple[dict[str, str], list[tuple[str, str]]]:
-    exact, wild = {}, []
-    for a in assets.values():
-        for key in [a.asset_id, a.name, *a.aliases]:
-            k = norm_host(key)
-            if k.startswith("*."):
-                wild.append((k[1:], a.asset_id))
-            elif k:
-                exact.setdefault(k, a.asset_id)
-    return exact, wild
-
-
-def resolve(value: str | None, exact: dict, wild: list) -> str | None:
-    if not value:
-        return None
-    k = norm_host(value)
-    if k in exact:
-        return exact[k]
-    return next((aid for suffix, aid in wild if k.endswith(suffix)), None)
 
 
 class DataQualityAgent(BaseAgent):
@@ -51,6 +21,34 @@ class DataQualityAgent(BaseAgent):
     description = "Deduplicates, validates and scores the trustworthiness of incoming data."
 
     def run(self, ctx: AgentContext, state: PipelineState) -> PipelineState:
+        icfg = ctx.settings.raw.get("identity") or {}
+        res = EntityResolver(state.assets, state.identities, primary_domain=icfg.get("primary_domain"),
+                             domains=icfg.get("domains") or [])
+        state.resolver = res
+        # 1. entity resolution: hosts / IPs / MACs / device ids / URLs -> CMDB asset; user spellings -> one identity
+        resolved, how_counts, users_norm = 0, {}, 0
+        for f in state.findings:
+            ev = f.evidence
+            if f.asset_id not in state.assets or (f.asset_id is None and (ev.get("ip") or ev.get("device_id"))):
+                aid, how = res.asset(f.asset_id, ev.get("device_id"), ev.get("device_ids"), ev.get("ip"), ev.get("ips"),
+                                     ev.get("mac"), f.app_id)
+                if aid:
+                    if f.asset_id and f.asset_id != aid:
+                        ev.setdefault("reported_asset", f.asset_id)
+                    f.asset_id, resolved = aid, resolved + 1
+                    how_counts[how] = how_counts.get(how, 0) + 1
+                elif f.domain == Domain.BUG_BOUNTY and f.asset_id:
+                    ev.setdefault("tags", []).append("unknown_asset")
+            if f.app_id and f.app_id not in state.assets:
+                aid, _ = res.asset(f.app_id)
+                if aid:
+                    f.app_id = aid
+            if f.user_id:
+                uid, how = res.user(f.user_id)
+                if uid and uid != f.user_id:
+                    ev.setdefault("reported_user", f.user_id)
+                    f.user_id, users_norm = uid, users_norm + 1
+        # 2. de-duplicate (after resolution, so FQDN / short-name duplicates collapse)
         before = len(state.findings)
         seen_ids, seen_vuln, unique = set(), set(), []
         for f in state.findings:
@@ -64,20 +62,8 @@ class DataQualityAgent(BaseAgent):
             seen_ids.add(f.finding_id)
             unique.append(f)
         state.findings = unique
-
-        # map hostnames / URLs / FQDNs used by external reports (bug bounty, advisories, e-mail) to CMDB assets
-        exact, wild = alias_index(state.assets)
-        resolved = 0
+        # 3. correlation keys shared across tools and intel sources
         for f in state.findings:
-            if f.asset_id and f.asset_id not in state.assets:
-                hit = resolve(f.asset_id, exact, wild)
-                if hit:
-                    f.asset_id, resolved = hit, resolved + 1
-                    if f.app_id and f.app_id not in state.assets:
-                        f.app_id = hit
-                elif f.domain == Domain.BUG_BOUNTY:
-                    f.evidence.setdefault("tags", []).append("unknown_asset")
-            # correlation keys shared across tools and intel sources
             if f.cve and f"cve:{f.cve.upper()}" not in f.entity_keys:
                 f.entity_keys.append(f"cve:{f.cve.upper()}")
             for ioc in ([f.evidence["ioc"]] if f.evidence.get("ioc") else []) + \
@@ -86,6 +72,9 @@ class DataQualityAgent(BaseAgent):
                 if key not in f.entity_keys:
                     f.entity_keys.append(key)
         dq_resolved = resolved
+        state.data_quality["entity_resolution"] = {"assets_resolved": resolved, "by_method": how_counts,
+                                                   "users_normalised": users_norm, "identities_loaded": len(state.identities),
+                                                   "ambiguous_keys": sorted(res.ambiguous)[:25]}
 
         integrated = {c.domain.value for c in state.controls}
         missing = [d for d in ctx.vertical.mandatory_domains if d not in integrated]

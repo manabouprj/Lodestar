@@ -54,3 +54,43 @@ def new_urgent(result: PipelineResult, raised: dict[str, datetime], since: datet
     from .engine import Button
     reply.buttons = [Button(d["options"][0][:75], d["decision_id"], d["options"][0]) for d in fresh[:3]]
     return send(reply, cfg)
+
+
+DEFAULT_ESCALATION_HOURS = {"now": 4, "today": 24, "this_week": 96}
+
+
+def escalate(result: PipelineResult, store, cfg: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
+    """Re-post decisions still pending after chatops.escalation_hours (per urgency) - once per stage.
+    Stage 1 at the threshold, stage 2 at twice the threshold (sent to chatops.escalation_channel when set,
+    e.g. the CISO's channel). Nothing is decided automatically; this only makes waiting visible."""
+    hours = {**DEFAULT_ESCALATION_HOURS, **(cfg.get("escalation_hours") or {})}
+    state = store.decision_state(result.org_name)
+    due: list[tuple[dict, int, float]] = []
+    for d in result.decisions:
+        st = state.get(d["decision_id"]) or {}
+        if d.get("status", "pending") != "pending" or st.get("status", "pending") != "pending" or not st.get("first_raised"):
+            continue
+        limit = hours.get(d.get("urgency"))
+        if not limit:
+            continue
+        raised = st["first_raised"]
+        waited = (now - (raised if raised.tzinfo else raised.replace(tzinfo=now.tzinfo))).total_seconds() / 3600
+        stage = 2 if waited >= 2 * limit else 1 if waited >= limit else 0
+        if stage and store.escalation_pending(result.org_name, d["decision_id"], f"stage{stage}"):
+            due.append((d, stage, waited))
+    if not due:
+        return []
+    lines = [f"{_decision_line(d)}\n   waiting {w:.0f}h{' - SECOND REMINDER' if s == 2 else ''}" for d, s, w in due]
+    reply = ChatReply(f"{len(due)} decision(s) still waiting for a human - {result.org_name}", lines, [],
+                      cfg.get("dashboard_url"), "escalation")
+    out = send(reply, cfg)
+    if any(r.get("ok", True) for r in out):           # mark only what actually reached a channel; retry next run otherwise
+        for d, s, _ in due:
+            store.escalation_sent(result.org_name, d["decision_id"], f"stage{s}")
+    ch = cfg.get("escalation_channel")
+    if ch and any(s == 2 for _, s, _ in due) and (cfg.get("slack") or {}).get("enabled"):
+        try:
+            out.append({"escalation_channel": ch, **slack.post(reply, cfg["slack"], ch)})
+        except Exception as exc:
+            out.append({"escalation_channel": ch, "ok": False, "error": str(exc)})
+    return out

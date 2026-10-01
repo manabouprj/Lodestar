@@ -28,7 +28,7 @@
 
 | Indicator | Now | Appetite | Change | Status |
 |---|---:|---:|---:|---|
-{% for k in kris %}| {{ k.label }} | {{ k.value|fmt(k.unit) }} | {{ '≥' if k.direction == 'higher_better' else '≤' }} {{ k.appetite|fmt(k.unit) }} | {{ k.delta|signed }} | {{ k.status|upper }} |
+{% for k in kris %}| {{ k.label }} | {{ 'not measured' if k.value is none else k.value|fmt(k.unit) }} | {{ '≥' if k.direction == 'higher_better' else '≤' }} {{ k.appetite|fmt(k.unit) }} | {{ k.delta|signed }} | {{ k.status|upper }} |
 {% endfor %}
 
 ## Attack paths ({{ attack_paths|length }})

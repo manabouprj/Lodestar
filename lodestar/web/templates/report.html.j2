@@ -100,10 +100,11 @@ footer{margin-top:40px;border-top:1px solid var(--rule);padding-top:12px;font-si
 <div class="wrap"><table>
 <thead><tr><th>Indicator</th><th class="num">Now</th><th class="num">Appetite</th><th class="num">Change</th><th>Trend</th><th>Status</th></tr></thead>
 <tbody>
-{% for k in kris %}<tr><td>{{ k.label }}</td><td class="num">{{ k.value|fmt(k.unit) }}</td><td class="num">{{ '≥' if k.direction == 'higher_better' else '≤' }} {{ k.appetite|fmt(k.unit) }}</td>
+{% for k in kris %}<tr><td>{{ k.label }}{% if k.source %}<div class="small">{{ k.source }}</div>{% endif %}</td><td class="num">{{ 'not measured' if k.value is none else k.value|fmt(k.unit) }}</td><td class="num">{{ '≥' if k.direction == 'higher_better' else '≤' }} {{ k.appetite|fmt(k.unit) }}</td>
 <td class="num">{{ k.delta|signed }}</td><td>{{ k.trend }}</td><td><span class="chip {{ k.status }}">{{ k.status|replace('_',' ') }}</span></td></tr>
 {% endfor %}
 </tbody></table></div>
+{% if kri_coverage is not none and kri_coverage < 100 %}<p class="small">{{ kri_coverage }}% of the industry profile's indicators are measured.{% if posture_provisional %} The posture score is <b>provisional</b> until more controls report.{% endif %} Not yet measured: {{ kri_missing|join(', ') }}.</p>{% endif %}
 
 <h2>Attack paths requiring action ({{ attack_paths|length }})</h2>
 {% for c in attack_paths %}

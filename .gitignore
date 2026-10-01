@@ -15,3 +15,11 @@ data/drop/**/*
 dist/
 reports/
 data/demo/
+# deployment data - your CMDB, people directory and backups never belong in git
+config/assets.csv
+config/assets-*.csv
+config/identities.csv
+config/identities-*.csv
+config/*.yaml.*.bak
+backups/
+data/backups/

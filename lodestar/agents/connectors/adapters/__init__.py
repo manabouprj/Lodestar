@@ -8,6 +8,7 @@ from .mailbox import MailboxAdapter
 from .misp import MispAdapter
 from .mock import MockAdapter
 from .ms_graph_security import MsGraphSecurityAdapter
+from .siem import SentinelQueryAdapter, SplunkSearchAdapter
 from .taxii import TaxiiAdapter
 from .tenable_vm import TenableVmAdapter
 from .webhook_inbox import WebhookInboxAdapter
@@ -15,7 +16,8 @@ from .webhook_inbox import WebhookInboxAdapter
 REGISTRY: dict[str, type[Adapter]] = {
     a.name: a for a in (MockAdapter, FileDropAdapter, WebhookInboxAdapter, MsGraphSecurityAdapter,
                         EntraIdentityProtectionAdapter, TenableVmAdapter,
-                        HackerOneAdapter, TaxiiAdapter, MispAdapter, CsafAdapter, MailboxAdapter)
+                        HackerOneAdapter, TaxiiAdapter, MispAdapter, CsafAdapter, MailboxAdapter,
+                        SentinelQueryAdapter, SplunkSearchAdapter)
 }
 
 

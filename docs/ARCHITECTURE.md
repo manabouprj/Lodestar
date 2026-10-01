@@ -19,19 +19,29 @@
 
 ## Components
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/architecture-dark.svg">
+  <img alt="LODESTAR architecture diagram" src="images/architecture-light.svg" width="100%">
+</picture>
+
+Run order inside one pipeline run (the orchestrator holds a per-organisation lease, so the API,
+scheduler and CLI never run the same organisation twice at once):
+
 ```
-                    ┌──────────────────────────── Orchestrator (phase-aware) ────────────────────────────┐
- Vendor APIs  ──►   │ AssetContext → 18 ConnectorAgents → DataQuality → ThreatIntel → ControlAssurance    │
- File drops   ──►   │ → Correlation → Prioritization → ComplianceMapping → Action                         │
- Webhooks     ──►   └──────────────┬───────────────────────────────────────────────────────────────────┘
- (HMAC)                            ▼
-                            Store (SQLite → Postgres)  ── runs · snapshots · findings · webhook · audit
-                                   │
-                ┌──────────────────┼──────────────────────┐
-                ▼                  ▼                      ▼
-         REST API + RBAC     Reporting + Narrative     Scheduler
-         Dashboard           weekly/monthly/quarterly  (every N hours, calendar reports)
+AssetContext ─► 21 ConnectorAgents ─► ThreatHunt* ─► DataQuality ─► Lifecycle ─► ThreatIntel ─► ControlAssurance
+             ─► Correlation ─► Prioritization ─► ComplianceMapping ─► Action ─► Decision ─► Store
+                                                                     * optional, needs a SIEM (threat_hunt.enabled)
+On demand / on schedule: Reporting, Narrative, ChatOps (Slack, Teams, dashboard, CLI), escalations, backups.
 ```
+
+| Stage | What it guarantees |
+|---|---|
+| ConnectorAgents | One per control domain, several sources each. A source that fails, is skipped by its interval, or returns nothing is recorded as such and **never** resolves earlier findings. Incremental sources keep a cursor in `connector_state`. |
+| ThreatHunt | Recent intel indicators (IP, domain, hash) are searched in SIEM telemetry with one read-only query; sightings become SOC detections. |
+| DataQuality | Hostnames, FQDNs, IPs, MACs, EDR device ids, cloud ids and URLs resolve to one CMDB asset; UPN / e-mail / `DOMAIN\sam` / object id resolve to one identity. Ambiguous short names are reported, never guessed. |
+| Lifecycle | First-seen is sticky across runs. Snapshot sources resolve an item after N consecutive complete pulls without it; incremental sources close items when the source says so, or expire alerts after N days. Carried-forward items are re-scored every run. |
+| Prioritization → Decision | Score, horizon and "why", attack paths, framework impact, drafted actions and the decisions only a human may take. |
+| Metrics | Each KRI carries its provenance (connector KPI, measured by LODESTAR from history, manual with an expiry, or **not measured**). Unmeasured KRIs lower the posture score and mark it provisional. |
 
 ### Data model (abridged)
 
@@ -45,23 +55,27 @@
 
 ### Adapters
 
-| Adapter | Use |
-|---|---|
-| `mock` | Demo mode; reads the synthetic dataset |
-| `file_drop` | Any product that can export CSV/JSON; `field_map` translates columns |
-| `webhook` | Products or SOAR push to `POST /api/ingest/{domain}` with HMAC signature; upserted by `finding_id` |
-| `ms_graph_security` | Microsoft Graph `security/alerts_v2` (Defender for Endpoint, Identity, Office 365, Cloud, Cloud Apps, Sentinel) |
-| `entra_identity_protection` | Risky users + MFA registration coverage |
-| `tenable_vm` | Tenable Vulnerability Management export API |
-
-## Scale
-
-| Dimension | v1.0 | Path |
+| Adapter | Sync | Use |
 |---|---|---|
-| Findings per run | tested at ~2,000 per entity in < 2 s | Linear; correlation is indexed by entity key |
-| Entities | one config per entity, shared or separate SQLite | PostgreSQL store implementing the same `Store` interface; tenant column already present (`org`) |
-| Throughput of ingestion | pull every 4 h + webhook | Move webhook inbox to a queue (Service Bus / Kafka) and run connector agents as separate workers |
-| HA | single container + scheduler | Stateless API behind a load balancer once the store is Postgres; scheduler as a single leader job (Kubernetes CronJob) |
+| `sentinel` | incremental when the KQL uses `{since}` | Any domain already in Microsoft Sentinel / Log Analytics (Log Analytics Reader) |
+| `splunk` | incremental when the SPL uses `{since_epoch}` | Any domain already in Splunk (search role + token) |
+| `ms_graph_security` | incremental (`lastUpdateDateTime`) | Defender XDR alerts: endpoint, identity, Office 365, cloud apps, cloud |
+| `entra_identity_protection` | snapshot | Risky users + MFA registration coverage |
+| `tenable_vm` | incremental (`since`, FIXED closes) | Tenable Vulnerability Management export API |
+| `hackerone` | snapshot | HackerOne programme reports (plus signed webhooks) |
+| `taxii`, `misp`, `csaf`, `mailbox` | incremental | CERT / ISAC TAXII 2.1, MISP, CSAF advisories, advisory e-mail |
+| `file_drop` | snapshot (newest file) | Any product that can export CSV/JSON; `field_map` translates columns |
+| `webhook` | incremental | Products or SOAR push to `POST /api/ingest/{domain}?org=` with an HMAC signature |
+| `mock` | - | Demo mode; reads the synthetic dataset |
+
+## Scale and tenancy
+
+| Dimension | v2.0 | Path |
+|---|---|---|
+| Findings per run | tested at ~2,000 per organisation in < 2 s | Linear; correlation is indexed by entity key |
+| Organisations | `config/tenants/*.yaml`, one store, every table org-scoped; API keys, SSO groups and chat channels map to organisations | Separate deployments where regulation requires physical separation |
+| Ingestion | scheduled pulls with cursors + signed webhooks | Move the webhook inbox to a queue (Service Bus / Kafka) and run connector agents as workers |
+| HA | one API container + one scheduler; lease locks prevent double runs | PostgreSQL implementation of the `Store` interface, then a stateless API behind a load balancer |
 
 ## Multi-industry design
 

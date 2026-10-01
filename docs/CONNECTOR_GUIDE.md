@@ -2,7 +2,46 @@
 
 > Step-by-step product setup (permissions, credentials, field maps, testing) is in [AGENT_SETUP.md](AGENT_SETUP.md). This page explains the three integration mechanisms and how to write a native adapter.
 
-There are three ways to bring a product into LODESTAR. Pick the lightest one that works.
+There are four ways to bring a product into LODESTAR. Pick the lightest one that works.
+
+## 0. SIEM-first (one query per domain)
+
+If the product already forwards to Microsoft Sentinel or Splunk, query the SIEM instead of
+integrating the product. You get one credential, one network path and one permission for many
+domains. Ready-made queries for EDR, identity, SOC, e-mail, cloud, firewall, WAF and web proxy are
+in [`config/templates/catalog.yaml`](../config/templates/catalog.yaml), and `lodestar init` uses them.
+
+```yaml
+connectors:
+  edr:
+    adapter: sentinel                  # or: splunk (settings: base_url, token, search, ca_bundle)
+    product: Defender for Endpoint via Sentinel
+    settings:
+      workspace_id: ${SENTINEL_WORKSPACE_ID}   # app needs "Log Analytics Reader" on the workspace
+      tenant_id: ${AZ_TENANT_ID}
+      client_id: ${AZ_CLIENT_ID}
+      client_secret: ${AZ_CLIENT_SECRET}
+      query: |                         # {since} = cursor (or now - lookback_days) -> incremental
+        SecurityAlert
+        | where TimeGenerated > datetime({since})
+        | summarize arg_max(TimeGenerated, *) by SystemAlertId
+        | project TimeGenerated, SystemAlertId, AlertName, AlertSeverity, CompromisedEntity, Status
+      field_map: {finding_id: SystemAlertId, title: AlertName, severity: AlertSeverity,
+                  asset_id: CompromisedEntity, status: Status, first_seen: TimeGenerated}
+      health_query: |                  # optional: first row's columns become KPIs (coverage_pct, ...)
+        DeviceInfo | where TimeGenerated > ago(7d)
+        | summarize arg_max(TimeGenerated, OnboardingStatus) by DeviceId
+        | summarize coverage_pct = round(100.0 * countif(OnboardingStatus == "Onboarded") / count(), 1)
+```
+
+Sync modes:
+
+* A query **with** `{since}` (Splunk: `{since_epoch}`) is **incremental**. LODESTAR keeps a
+  cursor, and items close when the query returns them with a closed status, or when they expire.
+* A query **without** it must return the **complete current set**, e.g. open incidents
+  (**snapshot**). An item missing from two complete pulls is resolved.
+
+A failed query never resolves anything.
 
 ## 1. File drop (no code)
 
@@ -85,12 +124,20 @@ and reference it in `config/lodestar.yaml`. Rules for adapters:
 * always return `ControlHealth` (coverage and freshness feed the posture score)
 * use `request_with_retry` (honours `Retry-After`, backs off on 429/5xx)
 
-## Validating a native adapter
+## Validating a native or SIEM adapter
 
-The three shipped native adapters (Microsoft Graph Security, Entra ID Protection, Tenable) follow
-the vendors' published APIs but must be validated against your tenant in Phase 1: run with
-`LODESTAR_LOG=INFO python -m lodestar run --phase 1`, check the counts per connector in the data
-quality panel against the vendor console, and spot-check ten findings.
+The shipped adapters follow the vendors' published APIs. `tests/test_contracts.py` pins each
+request and its response mapping against recorded responses, using `httpx.MockTransport` through
+`set_transport()`. They must still be validated against **your** tenant in phase 1:
+
+1. Run `python -m lodestar test-connector <domain> --show 20`.
+2. Compare the counts with the vendor console, and spot-check ten findings.
+3. Run `python -m lodestar run`, then `python -m lodestar doctor`, which shows each source's last
+   success or error.
+
+Add a contract test for every new adapter. Record a real response with the secrets removed,
+replay it through `set_transport()`, and assert on the request (endpoint, filter, auth) and on
+the mapping.
 
 ## Adding a correlation rule
 

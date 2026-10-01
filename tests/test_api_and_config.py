@@ -29,12 +29,10 @@ def client(tmp_path, monkeypatch, demo_dir, banking_result):
     monkeypatch.setenv("LODESTAR_API_KEYS", "ciso:" + "c" * 32 + ",exec:" + "e" * 32)
     monkeypatch.setenv("LODESTAR_WEBHOOK_SECRET", "s3cret-for-tests")
     monkeypatch.setenv("LODESTAR_H1_WEBHOOK_SECRET", "h1-secret-for-tests")
-    appmod.get_settings.cache_clear()
-    appmod.get_store.cache_clear()
+    appmod.reset_caches()
     Store(tmp_path / "api.db").save_result(banking_result)
     yield TestClient(appmod.app)
-    appmod.get_settings.cache_clear()
-    appmod.get_store.cache_clear()
+    appmod.reset_caches()
 
 
 def test_literal_secret_rejected(tmp_path):

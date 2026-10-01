@@ -17,11 +17,15 @@ from .base import Adapter, AdapterResult
 
 class WebhookInboxAdapter(Adapter):
     name = "webhook"
+    sync_mode = "incremental"
 
     def fetch(self, ctx) -> AdapterResult:
         if ctx.store is None:
             return AdapterResult(warnings=["webhook adapter requires a store"])
-        items = ctx.store.webhook_findings(self.domain.value, retention_days=int(self.settings.get("retention_days", 30)))
+        org = ctx.settings.org_name
+        shared = "_tenant_file" not in ctx.settings.raw     # multi-tenant: never read items pushed without an org
+        items = ctx.store.webhook_findings(self.domain.value, retention_days=int(self.settings.get("retention_days", 30)),
+                                           org=org, include_unscoped=shared)
         findings, warnings = [], []
         for raw in items:
             try:
@@ -29,7 +33,7 @@ class WebhookInboxAdapter(Adapter):
                 findings.append(Finding.model_validate(raw))
             except Exception as exc:  # reject bad payloads, keep the rest
                 warnings.append(f"rejected webhook payload: {exc}")
-        last, pushed = ctx.store.webhook_health(self.domain.value)
+        last, pushed = ctx.store.webhook_health(self.domain.value, org=org, include_unscoped=shared)
         if last is None and not findings:
             return AdapterResult(warnings=warnings + ["no webhook received yet for this domain"])
         h = {**(self.settings.get("health") or {}), **pushed}

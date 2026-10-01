@@ -119,6 +119,7 @@ def parse_message(raw: bytes, rules: list[dict], require_auth: bool = True) -> t
 
 class MailboxAdapter(Adapter):
     name = "mailbox"
+    sync_mode = "incremental"
     supported_domains = (Domain.THREAT_INTEL, Domain.BUG_BOUNTY)
 
     def _raw_messages(self, ctx) -> list[bytes]:

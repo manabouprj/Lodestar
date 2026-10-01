@@ -118,7 +118,7 @@ def build_payload(result: PipelineResult, assets: dict[str, str] | None = None) 
                    "attention": c["attention"], "mapped": c["controls_mapped"],
                    "controls": [r for r in c["controls"] if r["status"] != "on_track"][:12]}
                   for k, c in result.compliance.items() if not k.startswith("_")]
-    kris = kri_table(snap.kris, v)
+    kris = kri_table(snap.kris, v, snap.kri_sources)
     for k in kris:
         k["delta30"] = _delta(hist, k["metric"], 30)
         k["spark"] = [h.kris.get(k["metric"]) for h in hist[-90:]]
@@ -127,6 +127,7 @@ def build_payload(result: PipelineResult, assets: dict[str, str] | None = None) 
         "generated_at": result.generated_at.isoformat() if isinstance(result.generated_at, datetime) else str(result.generated_at),
         "frameworks": v.frameworks, "crown_jewels": v.crown_jewel_services, "threats": v.threat_landscape,
         "posture": snap.posture_score, "posture_d7": _delta(hist, "posture_score", 7),
+        "posture_provisional": snap.posture_provisional, "kri_coverage": snap.kri_coverage_pct,
         "posture_d30": _delta(hist, "posture_score", 30), "appetite": next((k["appetite"] for k in v.kris if k["metric"] == "posture_score"), 75),
         "funnel": {"signals": len(result.findings), "open": len(act), "week": len(by_h["week"]),
                    "today": len(by_h["today"]), "attack_paths": len(result.correlations)},

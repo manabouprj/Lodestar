@@ -36,6 +36,8 @@ A lodestar is the star navigators steer by. The platform does the same job for a
 | **Controls that are known to work** | Coverage, data freshness and policy drift measured for every control; a broken control becomes a finding |
 | **Board-ready reporting** | KRIs against risk appetite, decisions requested from leadership, indicative financial exposure, framework readiness (NIST CSF 2.0, ISO 27001:2022, PCI DSS v4.0.1) |
 | **One platform, any industry** | Industry profiles as YAML: banking, fintech, aviation, retail, oil & gas, power & utilities, telecom, ports & logistics |
+| **Numbers you can defend** | Findings keep a history (first seen, carried forward when a tool is down, resolved only when the source says so); every KRI shows its source, and unmeasured KRIs never count as "within appetite" |
+| **Running in a day or two** | `lodestar init` writes a SIEM-first configuration (Sentinel / Splunk) for your industry; `lodestar doctor` lists every gap with its fix; one deployment serves several organisations with SSO |
 
 ## Who it is for
 
@@ -110,38 +112,46 @@ What the dashboard shows, top to bottom:
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  subgraph Tools[Your security controls - read-only]
-    EDR & VMDR & IDP[Identity] & SOC[SIEM/SOC] & MAIL[Email] & FW[Firewall] & WAF & SWG[Web proxy]
-    ZTNA & PAM & CLOUD[CNAPP] & SAST & DAST & BRAND[Brand] & AI[AI security] & DLP & OT & BKP[Backup] & FRAUD[Fraud engine]
-  end
-  subgraph Ext[External reports & intelligence]
-    H1[HackerOne] & TAXII[CERT / ISAC TAXII] & MISP & CSAF[CISA ICS / PSIRT CSAF] & MAILBOX[Advisory mailbox]
-  end
-  Tools -->|API / file drop / signed webhook| CA[21 connector agents]
-  Ext -->|API / webhook / feeds / e-mail| CA
-  CA --> AC[Asset context] --> DQ[Data quality] --> TI[Threat intel] --> CTL[Control assurance]
-  CTL --> COR[Correlation] --> PRI[Prioritisation] --> CMP[Compliance] --> ACT[Action drafts] --> DEC[Decision desk]
-  PRI --> ST[(Store)]
-  DEC --> ST
-  ST --> API[REST API + RBAC] --> DASH[Dashboard]
-  ST --> REP[Reports + narrative]
-  ST --> CHAT[ChatOps agent] <--> SLK[Slack] & TMS[Microsoft Teams]
-  DEC -. human verdict .-> ITSM[ServiceNow / Jira]
-  VP[[Industry profile YAML]] -.-> PRI & CMP & REP & DEC
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
+  <img alt="LODESTAR architecture: security controls and external intelligence are collected read-only through five integration paths into 21 connector agents, processed by an eleven-stage agent pipeline backed by a store and an industry profile, and delivered to a dashboard, reports, Slack/Teams, API, ITSM and metrics; people make every decision." src="docs/images/architecture-light.svg" width="100%">
+</picture>
 
-34 agents: 21 connector agents and 13 core agents. Details are in
-[docs/AGENT_CATALOG.md](docs/AGENT_CATALOG.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+How to read it, top to bottom:
+
+1. **Sources.** LODESTAR reads from the controls you already run, with read-only scopes, plus external reports and intelligence. It never writes to them.
+2. **Integration paths.** Pick the lightest path per control. Most teams start **SIEM-first**: one Sentinel or Splunk query per domain covers most tools on day one. Native APIs, file drops and signed webhooks fill the gaps. Each control domain has its own connector agent, so one failing source never hides the others and never closes their findings.
+3. **Agent pipeline.** The eleven core stages are phase-gated, so you switch them on as data quality allows (see [Deployment phases](docs/DEPLOYMENT_PHASES.md)). Finding history, connector cursors, decisions and the audit trail live in the store, scoped per organisation. The industry profile sets the weights, KRIs and frameworks for aviation, banking, fintech, retail, energy, power, telecom and ports.
+4. **Delivery.** The dashboard, business reports, chat, API and metrics all read the same run, so no number differs between them.
+5. **People decide.** Agents inform and prepare. A human's verdict is the only thing that sends an action to ServiceNow or Jira.
+
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/AGENT_CATALOG.md](docs/AGENT_CATALOG.md). To regenerate the diagram after changing the pipeline, run `python scripts/make_architecture_svg.py`.
 
 ## Quick start
+
+### Your own data in one to two days
+
+```powershell
+git clone https://github.com/manabouprj/Lodestar.git; cd Lodestar
+py -3.12 -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt
+python -m lodestar init --org "Acme Bank" --vertical banking --siem sentinel --primary-domain acme.com
+#   fill the blank credentials in .env, export your CMDB to config/assets.csv
+python -m lodestar doctor                    # every gap, with its fix
+python -m lodestar test-connector edr        # one domain at a time, nothing stored
+python -m lodestar run; python -m lodestar serve
+```
+
+The day-by-day plan, including the pre-work to request a week ahead, is in
+**[docs/QUICKSTART.md](docs/QUICKSTART.md)**. To run it as a service (SSO, several organisations,
+monitoring, backups, upgrades), see **[docs/PRODUCTION.md](docs/PRODUCTION.md)**.
+
+### Demo with fictional data
 
 **Windows 11 (PowerShell)**
 
 ```powershell
-git clone https://github.com/<you>/lodestar.git
-cd lodestar
+git clone https://github.com/manabouprj/Lodestar.git
+cd Lodestar
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Serve     # venv, tests, demo, serve
 # open http://127.0.0.1:8080
 ```
@@ -179,7 +189,7 @@ The full runbook is **[docs/AGENT_SETUP.md](docs/AGENT_SETUP.md)**. In short:
 
 | Step | What you do | Check |
 |---|---|---|
-| 1. Platform | `Copy-Item .env.example .env`; set API keys and webhook secret; in `config/lodestar.yaml` set `org.name`, `org.vertical`, `mode: live`, `deployment_phase: 1` | `python -m lodestar validate --phase 1` |
+| 1. Platform | `python -m lodestar init` writes the live config (SIEM-first templates for your industry) and `.env` with generated keys and secrets | `python -m lodestar doctor` |
 | 2. Asset context | Export the CMDB / crown-jewel register to `config/assets.csv` (criticality 1-5, exposure, `aliases`, `vendor:`/`product:` tags) | CMDB match rate ≥ 90 % |
 | 3. Connector agents, one at a time | Credentials in `.env` → connector block in `config/lodestar.yaml` (native adapter, file drop with `field_map`, or signed webhook) | `python -m lodestar test-connector <domain>` |
 | 4. Core agents | Decision-desk RACI, scoring and Today capacity, ITSM (dry-run), Slack/Teams, threat-intel refresh | `python -m lodestar run --phase N` |
@@ -206,9 +216,18 @@ CyberArk, Wiz, Checkmarx, Invicti, Recorded Future, Purview DLP, Claroty, Rubrik
 | Bug bounty / VDP | HackerOne (API + signed webhooks), security@ mailbox | 2 |
 | Chat & ticketing | Slack, Microsoft Teams · ServiceNow, Jira | 2 |
 
-There are three ways to connect any product: the **native adapters** (Microsoft Graph Security,
-Entra ID Protection, Tenable, HackerOne, TAXII, MISP, CSAF, mailbox), a **file drop** of CSV/JSON exports with a field map (no code), or a
-**signed webhook** from the product or SOAR. See [docs/CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md).
+There are four ways to connect a product. Use the lightest one that works:
+
+1. **SIEM-first.** One read-only KQL query (Microsoft Sentinel) or SPL search (Splunk) per domain,
+   for every tool already forwarding to the SIEM. Ready-made templates are in
+   [`config/templates/catalog.yaml`](config/templates/catalog.yaml).
+2. **Native adapters.** Microsoft Graph Security, Entra ID Protection, Tenable, HackerOne, TAXII, MISP, CSAF and mailbox.
+3. **File drop.** CSV or JSON exports with a field map. No code needed.
+4. **Signed webhook.** Pushed from the product or a SOAR, per organisation.
+
+See [docs/CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md). The SIEM is also used to **hunt threat-intel
+indicators** in your telemetry every run, so an ISAC indicator seen in your own logs becomes a
+priority.
 
 ## Phased rollout
 
@@ -220,15 +239,21 @@ Entra ID Protection, Tenable, HackerOne, TAXII, MISP, CSAF, mailbox), a **file d
 | 3 | 11-14 | SAST, DAST, Brand, AI, DLP, OT, Backup; compliance mapping; monthly report | Full coverage, framework readiness |
 | 4 | 15-18 | Board report, optional LLM narrative, more entities, live ITSM | Executive and group scale |
 
-\* Indicative for one entity. Each phase has a go-live gate: `python -m lodestar validate --phase N`.
+\* Indicative for one organisation's full rollout, including approvals and tuning. With SIEM-first
+integration, phases 0-1 on your own data take one to two days ([QUICKSTART.md](docs/QUICKSTART.md)).
+Each phase has a go-live gate: `python -m lodestar doctor` with no failures at that `deployment_phase`.
 See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
+| `python -m lodestar init` | Generate a live config for your organisation and industry (SIEM-first), `.env` secrets, CMDB template; `--tenant` adds an organisation |
+| `python -m lodestar doctor [--online]` | Readiness report: config, secrets, CMDB, every connector source, KRIs, SSO, backups, network |
 | `python -m lodestar demo` | Demo data for 8 industries → run → reports → dashboard |
-| `python -m lodestar run [--phase N]` | Run the agents once |
+| `python -m lodestar run [--org key] [--force]` | Run the agents once for every organisation (or one) |
+| `python -m lodestar kpis` | Where every KRI comes from, and how to measure the missing ones |
+| `python -m lodestar backup [--out file]` | Online backup of the store |
 | `python -m lodestar serve` | API, dashboard, Slack/Teams endpoints |
 | `python -m lodestar schedule` | Runs every N hours, posts the brief and alerts, writes reports on calendar boundaries |
 | `python -m lodestar chat [question]` | Ask the prioritisation agent from the terminal |
@@ -243,27 +268,33 @@ See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 
 ```
 lodestar/
-  agents/connectors/   21 connector agents + adapters (mock, file_drop, webhook, Graph Security, Entra, Tenable,
-                       HackerOne, TAXII/STIX, MISP, CSAF, mailbox)
-  agents/core/         asset context, data quality, threat intel, control assurance, correlation,
-                       prioritisation, compliance, action, decision desk, narrative
+  agents/connectors/   21 connector agents + adapters (Sentinel, Splunk, Graph Security, Entra, Tenable, HackerOne,
+                       TAXII/STIX, MISP, CSAF, mailbox, file_drop, webhook, mock)
+  agents/core/         asset context, threat hunt, data quality, lifecycle, threat intel, control assurance,
+                       correlation, prioritisation, compliance, action, decision desk, narrative
+  entities.py          asset and identity resolution (FQDN, IP, MAC, device ids, UPN / sam / object id)
+  onboarding.py        `init` and `doctor`
+  ops.py               Prometheus metrics, JSON logging
+  api/auth.py          OIDC SSO, bearer JWT, org-scoped API keys, signed sessions, CSRF
   chatops/             chat engine, Slack, Microsoft Teams, notifier
   scoring.py           explainable LODESTAR Risk Score
   decisions.py         recording human verdicts (role checks, audit, ITSM release)
   reporting.py         weekly / monthly / quarterly reports
   api/app.py           REST API, RBAC, webhook ingest, chat endpoints, dashboard
   demo/generator.py    fictional demo data for 8 industries
-config/                platform config, industry profiles, framework mappings
+config/                platform config, industry profiles, framework mappings, templates/catalog.yaml, tenants/
 docs/                  architecture, scoring, phases, human-in-the-loop, ChatOps, fraud, security, peer review, demo script
 samples/               dashboard and reports generated from the demo data
-tests/                 50 tests (with STIX, CSAF, HackerOne and e-mail fixtures)
+tests/                 90+ tests, incl. contract tests against recorded vendor responses
 ```
 
 ## Security
 
 The platform is built to tier-0 standards. Connectors only read. Secrets come from the
-environment and the config loader rejects literal secrets. The API uses role-based keys, and
-webhooks and Slack/Teams requests are HMAC-verified. The container runs non-root on a read-only
+environment, and the config loader rejects literal secrets. People sign in with OIDC single
+sign-on, with groups mapped to roles and organisations. Automation uses org-scoped API keys or
+bearer tokens. Cookie sessions are signed and CSRF-protected. Webhooks and Slack/Teams requests
+are HMAC-verified. The container runs non-root on a read-only
 filesystem. Every agent run and verdict is audit-logged. The LLM narrative is off by default and
 only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -271,7 +302,9 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 | Document | For |
 |---|---|
-| [AGENT_SETUP.md](docs/AGENT_SETUP.md) | **Start here for real deployments:** step-by-step agent setup and product integration |
+| [QUICKSTART.md](docs/QUICKSTART.md) | **Start here:** your own data in one to two days (pre-work, `init`, `doctor`, first run) |
+| [AGENT_SETUP.md](docs/AGENT_SETUP.md) | Per-product setup: permissions, credentials, field maps, testing |
+| [PRODUCTION.md](docs/PRODUCTION.md) | SSO, several organisations, monitoring, backups, upgrades, finding lifecycle, hardening |
 | [HUMAN_IN_THE_LOOP.md](docs/HUMAN_IN_THE_LOOP.md) | Decision desk, decision types, guard-rails |
 | [CHATOPS.md](docs/CHATOPS.md) | Slack and Teams setup, roles in chat |
 | [FRAUD_MANAGEMENT.md](docs/FRAUD_MANAGEMENT.md) | Cyber-enabled fraud for financial institutions |
@@ -286,9 +319,27 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 1.3.0. Planned next: native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz,
-Cloudflare, Feedzai and Bugcrowd; a PostgreSQL store for multi-entity HA; in-app OIDC; and a full Teams bot
-with card actions. Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md).
+Version 2.0.0 is production-ready for a single node serving one or many organisations. It includes:
+
+* finding lifecycle with history;
+* asset and identity resolution;
+* SIEM-first connectors and IOC hunting;
+* KRI provenance;
+* OIDC single sign-on and org-scoped access;
+* metrics, readiness checks and backups;
+* `init` and `doctor`.
+
+The native and SIEM adapters follow the vendors' published APIs and are covered by contract tests
+against recorded responses. Validate them against your own tenant in the first week (see
+[QUICKSTART.md](docs/QUICKSTART.md)).
+
+Planned next:
+
+* native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz, Cloudflare, Feedzai and Bugcrowd;
+* a PostgreSQL store for active-active high availability;
+* a full Teams bot with card actions.
+
+Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md).
 
 All demo organisations, people, hosts and `*.example` domains are fictional. CVE identifiers are
 real public CVEs used for illustration.

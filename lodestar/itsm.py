@@ -46,7 +46,29 @@ def submit(action: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:
         return {"submitted": False, "reason": "itsm.provider is 'none' - action recorded as approved only"}
     if cfg.get("dry_run", True):
         return {"submitted": False, "dry_run": True, "url": url, "payload": payload}
-    import httpx
-    r = httpx.post(url, json=payload, auth=(cfg.get("username", ""), cfg.get("api_token", "")), timeout=30, trust_env=True)
+    from .agents.connectors.adapters.base import http_client
+    with http_client(30, verify=cfg.get("ca_bundle") or True) as c:   # no automatic retry: a create must not duplicate
+        r = c.post(url, json=payload, auth=(cfg.get("username", ""), cfg.get("api_token", "")))
     r.raise_for_status()
-    return {"submitted": True, "status": r.status_code, "response": r.json()}
+    body = r.json()
+    ref = (body.get("result") or {}).get("number") or body.get("key") or (body.get("result") or {}).get("sys_id") or ""
+    base = cfg.get("base_url", "").rstrip("/")
+    link = f"{base}/browse/{ref}" if provider == "jira" and ref else (
+        f"{base}/nav_to.do?uri=incident.do?sys_id={(body.get('result') or {}).get('sys_id')}" if ref else "")
+    return {"submitted": True, "status": r.status_code, "ticket": ref, "url": link}
+
+
+def submit_once(store, org: str, action: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:
+    """Submit an approved action unless a ticket already exists for it (approval twice, from the dashboard
+    and from Slack, or a retry after a timeout). Returns the existing ticket in that case."""
+    if store is None:
+        return submit(action, cfg)
+    # the lease serialises simultaneous approvals (dashboard + Slack at the same moment) for one action
+    with store.lease(f"itsm:{org}:{action['action_id']}", ttl_seconds=120, wait_seconds=60):
+        existing = store.ticket_for(org, action["action_id"])
+        if existing:
+            return {"submitted": False, "duplicate": True, "ticket": existing["ref"], "url": existing["url"]}
+        out = submit(action, cfg)
+        if out.get("submitted") and out.get("ticket"):
+            store.save_ticket(org, action["action_id"], out["ticket"], out.get("url", ""))
+        return out

@@ -53,6 +53,7 @@ def parse_csaf(doc: dict, source: str):
 
 class CsafAdapter(Adapter):
     name = "csaf"
+    sync_mode = "incremental"
     supported_domains = (Domain.THREAT_INTEL,)
 
     def fetch(self, ctx) -> AdapterResult:

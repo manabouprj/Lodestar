@@ -36,6 +36,7 @@ def parse_events(events: list[dict], source: str) -> list:
 
 class MispAdapter(Adapter):
     name = "misp"
+    sync_mode = "incremental"
     supported_domains = (Domain.THREAT_INTEL,)
 
     def fetch(self, ctx) -> AdapterResult:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .itsm import submit
+from .itsm import submit_once
 from .models import PipelineResult
 from .store import Store
 
@@ -63,7 +63,7 @@ def record(store: Store, result: PipelineResult, decision_id: str, choice: str, 
     if status == "approved" and d.get("action_id"):
         action = next((a for a in result.actions if a["action_id"] == d["action_id"]), None)
         if action:
-            out["itsm"] = submit(action, itsm_cfg or {})
+            out["itsm"] = submit_once(store, result.org_name, action, itsm_cfg or {})
     store.audit(f"{channel}:{actor or role}", "decision_recorded",
                 {"org": result.org_name, **{k: v for k, v in out.items() if k != "itsm"}, "note": note[:500]})
     d.update({"status": status, "choice": match, "decided_by": role})

@@ -23,12 +23,12 @@ Close and reopen PowerShell so the new commands are on your PATH. Check with `gi
 ## 2. Unpack the download
 
 ```powershell
-$zip = "$env:USERPROFILE\Downloads\lodestar-v1.3.0.zip"
+$zip = "$env:USERPROFILE\Downloads\lodestar-v2.0.0.zip"
 Unblock-File $zip                                   # removes the "downloaded from internet" flag so scripts run
 New-Item -ItemType Directory -Force C:\Projects | Out-Null
 Expand-Archive $zip -DestinationPath C:\Projects -Force
 cd C:\Projects\lodestar
-git log --oneline                                   # you should see the LODESTAR v1.0.0 ... v1.3.0 commits
+git log --oneline                                   # you should see the LODESTAR v1.0.0 ... v2.0.0 commits
 ```
 
 Use a short path outside OneDrive (for example `C:\Projects`) to avoid sync conflicts and
@@ -41,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File scripts\push-to-github.ps1 -Owner manab
 ```
 
 With GitHub CLI installed, the script signs you in through the browser, creates a **private**
-repository `manabouprj/lodestar`, and pushes `main` plus tags. Add `-Public` for a public
+repository `manabouprj/Lodestar`, and pushes `main` plus tags. Add `-Public` for a public
 repository.
 
 ## 3b. Push manually
@@ -54,7 +54,7 @@ repository.
 git config user.name  "Peter Akinyele"
 git config user.email "your-github-email@example.com"     # or your GitHub noreply address
 git branch -M main
-git remote add origin https://github.com/manabouprj/lodestar.git
+git remote add origin https://github.com/manabouprj/Lodestar.git
 git push -u origin main
 git push origin --tags
 ```
@@ -67,7 +67,7 @@ needs to be pasted.
 * **Code** tab: README renders with the architecture diagram.
 * **Actions** tab: the `ci` workflow runs lint, 47 tests, `validate`, the demo build and a Docker
   build/smoke test. Download the `demo-dashboard-and-reports` artifact from the run.
-* **Releases**: optionally create a release from tag `v1.3.0` and attach `samples/lodestar-dashboard.html`.
+* **Releases**: optionally create a release from tag `v2.0.0` and attach `samples/lodestar-dashboard.html`.
 
 ## Update an existing GitHub repository
 
@@ -79,7 +79,7 @@ new commit, so the push is a simple fast-forward.
 ```powershell
 cd C:\Projects\lodestar                             # your existing clone
 git status                                         # commit or stash anything you changed first
-Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.3.0.zip" -DestinationPath C:\Temp\lodestar-new -Force
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v2.0.0.zip" -DestinationPath C:\Temp\lodestar-new -Force
 git fetch C:\Temp\lodestar-new\lodestar main --tags     # bring in the new commit from the unpacked copy
 git merge --ff-only FETCH_HEAD
 git push origin main --tags
@@ -89,9 +89,9 @@ git push origin main --tags
 
 ```powershell
 Rename-Item C:\Projects\lodestar lodestar-old
-Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v1.3.0.zip" -DestinationPath C:\Projects -Force
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v2.0.0.zip" -DestinationPath C:\Projects -Force
 cd C:\Projects\lodestar
-git remote add origin https://github.com/manabouprj/lodestar.git
+git remote add origin https://github.com/manabouprj/Lodestar.git
 git push origin main --tags
 ```
 
@@ -124,7 +124,7 @@ it with the sample reports.
 2. Under *Build and deployment*, set **Source: GitHub Actions**.
 3. **Actions** tab → **demo-dashboard** → **Run workflow** (it also runs automatically on every push
    to `main` that changes the code or config).
-4. When the run finishes, the dashboard is at `https://manabouprj.github.io/lodestar/` and the
+4. When the run finishes, the dashboard is at `https://manabouprj.github.io/Lodestar/` and the
    reports are under `/reports/`. The README's *Open the live demo dashboard* link already points
    there. Edit that link if your repository or user name differs.
 
@@ -162,7 +162,7 @@ git commit -m "Add Bugcrowd adapter"
 git push -u origin feature/new-connector        # then open a pull request on GitHub
 ```
 
-Release: `git tag -a v1.3.0 -m "LODESTAR v1.3.0"` then `git push origin --tags`.
+Release: `git tag -a v2.0.0 -m "LODESTAR v2.0.0"` then `git push origin --tags`.
 
 ## Troubleshooting
 

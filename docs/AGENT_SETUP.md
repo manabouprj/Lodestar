@@ -1,5 +1,11 @@
 # Agent setup and integration
 
+> **Fast path.** `python -m lodestar init` generates Steps 1 and 3 for you: a live config with
+> SIEM-first templates (Sentinel or Splunk) for every domain your industry needs, and a `.env` with
+> generated secrets. `python -m lodestar doctor` then lists every remaining gap and how to fix it.
+> The one-to-two-day plan is in [QUICKSTART.md](QUICKSTART.md). This guide is the per-product
+> reference: permissions, credentials, field maps and troubleshooting.
+
 This guide takes LODESTAR from the demo to your real security tools, one agent at a time. Every
 step is written for **Windows 11 + PowerShell**. Linux and Docker equivalents are given where
 they differ.

@@ -40,13 +40,19 @@ def _dt(s):
 
 class MsGraphSecurityAdapter(Adapter):
     name = "ms_graph_security"
+    sync_mode = "incremental"
     supported_domains = tuple(SOURCES)
 
     def fetch(self, ctx) -> AdapterResult:
         self.require("tenant_id", "client_id", "client_secret")
-        since = (datetime.now(timezone.utc) - timedelta(days=int(self.settings.get("lookback_days", 14))))
+        # incremental: first run = alerts created in the lookback window; afterwards = anything UPDATED since
+        # the cursor, so status changes (resolved / in progress) flow back and nothing silently "disappears"
         src_filter = " or ".join(f"serviceSource eq '{s}'" for s in SOURCES[self.domain])
-        flt = f"({src_filter}) and createdDateTime ge {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        if self.cursor:
+            flt = f"({src_filter}) and lastUpdateDateTime ge {self.cursor}"
+        else:
+            since = (datetime.now(timezone.utc) - timedelta(days=int(self.settings.get("lookback_days", 14))))
+            flt = f"({src_filter}) and createdDateTime ge {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
         findings: list[Finding] = []
         with http_client() as c:
             token = get_token(c, self.settings["tenant_id"], self.settings["client_id"], self.settings["client_secret"])
@@ -57,12 +63,22 @@ class MsGraphSecurityAdapter(Adapter):
                                           headers={"Authorization": f"Bearer {token}"}).json()
                 for a in data.get("value", []):
                     host = user = None
+                    device_ids, ips, iocs = [], [], []
                     for ev in a.get("evidence", []):
                         t = ev.get("@odata.type", "")
-                        if t.endswith("deviceEvidence") and not host:
-                            host = ev.get("deviceDnsName") or ev.get("mdeDeviceId")
-                        if t.endswith("userEvidence") and not user:
-                            user = (ev.get("userAccount") or {}).get("userPrincipalName")
+                        if t.endswith("deviceEvidence"):
+                            host = host or ev.get("deviceDnsName") or ev.get("hostName")
+                            if ev.get("mdeDeviceId"):
+                                device_ids.append(f"mde:{ev['mdeDeviceId']}")
+                            if ev.get("azureAdDeviceId"):
+                                device_ids.append(f"entra:{ev['azureAdDeviceId']}")
+                        elif t.endswith("userEvidence") and not user:
+                            acct = ev.get("userAccount") or {}
+                            user = acct.get("userPrincipalName") or acct.get("accountName")
+                        elif t.endswith("ipEvidence") and ev.get("ipAddress"):
+                            ips.append(ev["ipAddress"])
+                        elif t.endswith("urlEvidence") and ev.get("url"):
+                            iocs.append(ev["url"])
                     last = _dt(a.get("lastUpdateDateTime"))
                     newest = max(newest, last) if newest else last
                     findings.append(Finding(
@@ -70,16 +86,19 @@ class MsGraphSecurityAdapter(Adapter):
                         source=a.get("serviceSource", self.product), finding_type=FindingType.DETECTION,
                         title=a.get("title", "Alert"), description=a.get("description", "") or "",
                         severity=SEV.get(a.get("severity", "unknown"), Severity.MEDIUM),
-                        status=STATUS.get(a.get("status", "new"), Status.OPEN),
+                        status=Status.FALSE_POSITIVE if a.get("classification") == "falsePositive"
+                        else STATUS.get(a.get("status", "new"), Status.OPEN),
                         asset_id=host, user_id=user, first_seen=_dt(a.get("createdDateTime")), last_seen=last,
                         evidence={"category": a.get("category"), "mitre": a.get("mitreTechniques", []),
-                                  "incident_id": a.get("incidentId"), "url": a.get("alertWebUrl")},
+                                  "incident_id": a.get("incidentId"), "url": a.get("alertWebUrl"),
+                                  "device_ids": device_ids, "ips": ips, "iocs": iocs[:20]},
                         remediation=a.get("recommendedActions", "") or "",
                     ))
                 url, params = data.get("@odata.nextLink"), None
-        fresh = (datetime.now(timezone.utc) - newest).total_seconds() / 3600 if newest else 0.0
+        # a successful incremental query IS fresh data, even when nothing changed
         health = ControlHealth(domain=self.domain, product=self.product or "Microsoft Defender XDR",
                                coverage_pct=float(self.settings.get("coverage_pct") or 100.0),
-                               data_freshness_hours=round(fresh, 1),
+                               data_freshness_hours=0.0,
                                health_issues=[] if self.settings.get("coverage_pct") else ["Coverage not reported - set settings.coverage_pct from the console"])
-        return AdapterResult(findings=findings, health=health)
+        cursor = newest.strftime("%Y-%m-%dT%H:%M:%SZ") if newest else self.cursor
+        return AdapterResult(findings=findings, health=health, cursor=cursor)

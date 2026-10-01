@@ -1,0 +1,3 @@
+identity_id,display_name,upn,email,sam,entra_object_id,aliases,privileged,department
+jane.doe,Jane Doe,jane.doe@your-org.example,jane.doe@your-org.example,YOURORG\jdoe,00000000-0000-0000-0000-00000000a001,j.doe@legacy.your-org.example,false,Finance
+svc-backup,Backup service account,svc-backup@your-org.example,,YOURORG\svc-backup,00000000-0000-0000-0000-00000000a002,,true,IT Operations

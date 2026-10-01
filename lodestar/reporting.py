@@ -109,7 +109,7 @@ def build_context(result: PipelineResult, period: str, llm_cfg: dict | None = No
     act = [f for f in result.findings if f.status in (Status.OPEN, Status.IN_PROGRESS)]
     today = [f for f in act if f.horizon == Horizon.TODAY]
     week = [f for f in act if f.horizon == Horizon.THIS_WEEK]
-    kris = kri_table(snap.kris, v)
+    kris = kri_table(snap.kris, v, snap.kri_sources)
     for k in kris:
         pv = prev.kris.get(k["metric"])
         k["previous"] = pv
@@ -148,6 +148,7 @@ def build_context(result: PipelineResult, period: str, llm_cfg: dict | None = No
         "posture_delta": round(snap.posture_score - prev.posture_score, 1),
         "appetite": next((k["appetite"] for k in kris if k["metric"] == "posture_score"), 75),
         "kris": kris, "breaches": breaches, "decisions": decisions,
+        "kri_coverage": snap.kri_coverage_pct, "kri_missing": snap.kri_missing, "posture_provisional": snap.posture_provisional,
         "today": today[:15], "week": week[:15], "counts": {"today": len(today), "week": len(week), "open": len(act),
                                                           "signals": len(result.findings)},
         "attack_paths": result.correlations[:10], "exposure": exposure,

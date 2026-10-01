@@ -129,3 +129,47 @@ for financial institutions, was absent.
 | O-16 | `incident_reporting` authorities and hours are placeholders | Confirm with Legal per jurisdiction |
 | O-17 | No Bugcrowd / Intigriti native adapters (use mailbox or webhook) | Roadmap |
 | O-18 | STIX patterns are parsed for common observables only (IP, domain, URL, SHA-256) | Extend parser as feeds require |
+
+## 7. Review of v2.0: deployable by other teams, in any industry, in one to two days
+
+The v1.3 review asked whether a team other than the authors could deploy LODESTAR on real data
+and trust its numbers. It found six blockers. Each one is fixed below and covered by tests (90+ in total).
+
+| # | Severity | Blocker in v1.3 | Fix in v2.0 |
+|---|---|---|---|
+| B1 | Critical | No finding history. Every run replaced the last, so a tool outage made risk "disappear", first-seen reset, and MTTR / SLA could not be measured | `LifecycleAgent` + store v2: sticky first-seen; carry-forward on failed, skipped or empty sources; snapshot resolution after N complete pulls; incremental sources (Graph `lastUpdateDateTime`, Tenable `since` + `FIXED`, SIEM `{since}`) with cursors per source; expiry for alerts and advisories; schema migrations from v1 |
+| B2 | Critical | Findings matched assets only by exact name, so FQDN / short name / IP / device-id variants became "unknown assets" and users were counted several times | `EntityResolver`: FQDN, unambiguous short name, IP, MAC, EDR / scanner / cloud ids and wildcards to one CMDB asset; UPN / e-mail / `DOMAIN\sam` / object id to one identity (`identities.csv`); ambiguity reported, never guessed; dedupe after resolution |
+| B3 | High | Intel indicators were only matched against IOCs already present in alerts, so an ISAC indicator seen in proxy or DNS logs was missed | `ThreatHuntAgent`: one read-only KQL / SPL hunt per run over network, DNS, file, CEF and e-mail telemetry; sightings become SOC detections and mark the advisory *sighted* |
+| B4 | High | KRIs defaulted to good values when a tool was not integrated (e.g. 100% SLA with no scanner), inflating posture | KRI provenance (connector, LODESTAR lifecycle, findings, manual with expiry); not measured = not counted as within appetite; KRI coverage % and a *provisional* posture flag; `lodestar kpis` |
+| B5 | High | Three native adapters; every other product needed a custom field map, which is weeks of work per organisation | SIEM-first `sentinel` and `splunk` adapters (any domain, incremental or snapshot, health queries for KPIs) + a catalogue of ready-made queries; contract tests with recorded responses for Graph, Log Analytics, Splunk, Tenable and HackerOne |
+| B6 | High | One organisation per deployment; SSO only through a proxy; no readiness, metrics or backups | Tenants (`config/tenants/*.yaml`); org-scoped keys, SSO groups, chat channels and webhooks; in-app OIDC + bearer JWT; signed sessions + CSRF; `/readyz`, `/metrics`, JSON logs; nightly prune + backup; lease locks; pinned dependencies |
+
+Onboarding: `lodestar init` (SIEM-first configuration for the chosen industry, generated secrets,
+CMDB template) and `lodestar doctor` (one readiness screen with a fix for every gap).
+See [QUICKSTART.md](QUICKSTART.md) and [PRODUCTION.md](PRODUCTION.md).
+
+**Closed from earlier lists:** O-04 (in-app OIDC), O-05 (webhook replay window, opt-in), O-07
+(MTTR computed from history), PR-13 follow-up (per-organisation access).
+
+**Still open, stated plainly**
+
+| # | Item | Why it matters | Plan |
+|---|---|---|---|
+| O-19 | Adapters and query templates are tested against recorded responses, not your tenant | Column names differ by connector version | Week-1 validation with `test-connector` against each console (QUICKSTART) |
+| O-20 | SQLite on one node | No active-active HA | PostgreSQL `Store` implementation |
+| O-21 | Lifecycle MTTR needs history | The first weeks show vendor KPIs or "not measured" | Automatic once at least 3 items have closed |
+| O-22 | Threat hunt covers IP, domain and hash indicators | URL-path and JA3 indicators are not hunted | Extend the templates as feeds require |
+| O-23 | Webhook timestamps are optional by default | Senders that only sign the body can be replayed within retention (upsert is idempotent) | Turn on `webhook_require_timestamp` once all senders are updated |
+
+**Independent second-pass review of v2.0 (findings fixed before release, each with a regression test)**
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| PR-33 | High | A tenant file could override `mode` / `security` / `chatops` and switch off authentication for every organisation | Deployment-wide keys are rejected in tenant files (`test_tenant_file_cannot_weaken_deployment_settings`) |
+| PR-34 | Medium | With exactly one tenant file, webhook items were stored without an organisation and never read | Stored under that tenant (`test_single_tenant_file_webhook_is_readable`) |
+| PR-35 | Medium | An unmapped Slack channel in a multi-tenant deployment fell back to the first organisation | Refused with an explanation (`test_multi_tenant_chat_without_mapping_is_refused`) |
+| PR-36 | Medium | Risk-accepted findings disappeared while a source was down, and their miss count never advanced | Every non-closed status is carried; misses always recorded |
+| PR-37 | Medium | "Connector removed" and "expired" closures counted as fixes in MTTR / SLA | Excluded from lifecycle KPIs; lifecycle KPIs need the scanner integrated |
+| PR-38 | Medium | Internet-facing criticals and attack paths read "0, within appetite" when nothing could measure them | Source and phase requirements per KRI |
+| PR-39 | Medium | IOC hunt missed MD5 / SHA-1 hits and `host:port` values | Indicator chosen by which hash matched; ports stripped when matching |
+| PR-40 | Low | Unknown JWT `kid` re-fetched JWKS on every request; webhook `?org=` not covered by a shared secret; escalation marked sent before delivery; simultaneous approvals could open two tickets; malformed JSON returned 500; `/readyz` listed organisation names | JWKS refetch at most once a minute; per-organisation webhook secret mandatory with several organisations; mark after delivery; lease lock around ticket creation; 400 on bad JSON; `/readyz` returns counts only |

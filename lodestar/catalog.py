@@ -10,7 +10,9 @@ from .agents.core import (
     CorrelationAgent,
     DataQualityAgent,
     DecisionAgent,
+    LifecycleAgent,
     PrioritizationAgent,
+    ThreatHuntAgent,
     ThreatIntelAgent,
 )
 
@@ -27,7 +29,7 @@ ORCH = {"name": "Orchestrator", "phase": 0, "kind": "core",
 
 def agent_catalog() -> list[dict]:
     core = [ORCH] + [{"name": a.name, "phase": a.phase, "kind": "core", "description": a.description} for a in (
-        AssetContextAgent, DataQualityAgent, ThreatIntelAgent, ControlAssuranceAgent, PrioritizationAgent,
+        AssetContextAgent, DataQualityAgent, LifecycleAgent, ThreatHuntAgent, ThreatIntelAgent, ControlAssuranceAgent, PrioritizationAgent,
         CorrelationAgent, ActionAgent, DecisionAgent, ComplianceMappingAgent)] + [REPORTING, NARRATIVE, CHATOPS]
     conn = [{"name": s.agent_name, "phase": s.phase, "kind": "connector", "domain": s.domain.value, "title": s.title,
              "description": s.purpose, "products": list(s.typical_products), "kpis": list(s.kpis),

@@ -10,23 +10,35 @@
 param(
   [Parameter(Mandatory = $true)][string]$Domain,
   [Parameter(Mandatory = $true)][string]$File,
-  [string]$Url = "http://127.0.0.1:8080"
+  [string]$Url = "http://127.0.0.1:8080",
+  [string]$Org = ""          # multi-tenant deployments: the organisation key (uses LODESTAR_WEBHOOK_SECRET_<ORG> if set)
 )
 $ErrorActionPreference = "Stop"
 $root = Join-Path $PSScriptRoot ".."
-$secret = $env:LODESTAR_WEBHOOK_SECRET
-if (-not $secret -and (Test-Path (Join-Path $root ".env"))) {
-  $line = Get-Content (Join-Path $root ".env") | Where-Object { $_ -match '^\s*LODESTAR_WEBHOOK_SECRET\s*=' } | Select-Object -First 1
-  if ($line) { $secret = ($line -split '=', 2)[1].Trim().Trim('"') }
+$names = @()
+if ($Org) { $names += "LODESTAR_WEBHOOK_SECRET_" + ($Org.ToUpper() -replace '-', '_') }
+$names += "LODESTAR_WEBHOOK_SECRET"
+$secret = $null
+foreach ($n in $names) {
+  $v = [Environment]::GetEnvironmentVariable($n)
+  if (-not $v -and (Test-Path (Join-Path $root ".env"))) {
+    $line = Get-Content (Join-Path $root ".env") | Where-Object { $_ -match ('^\s*' + $n + '\s*=') } | Select-Object -First 1
+    if ($line) { $v = ($line -split '=', 2)[1].Trim().Trim('"') }
+  }
+  if ($v) { $secret = $v; break }
 }
 if (-not $secret) { throw "Set LODESTAR_WEBHOOK_SECRET (environment or .env) first." }
 
 $path = Resolve-Path $File
 $bytes = [System.IO.File]::ReadAllBytes($path)
+# replay protection: sign "<unix seconds>.<body>" and send the timestamp header (accepted for 5 minutes)
+$ts = [string][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$signed = [Text.Encoding]::UTF8.GetBytes("$ts.") + $bytes
 $hmac = New-Object System.Security.Cryptography.HMACSHA256 (,[Text.Encoding]::UTF8.GetBytes($secret))
-$sig = -join ($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") })
+$sig = -join ($hmac.ComputeHash([byte[]]$signed) | ForEach-Object { $_.ToString("x2") })
 
-$resp = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$($Url.TrimEnd('/'))/api/ingest/$Domain" -Body $bytes `
-  -ContentType "application/json" -Headers @{ "X-Lodestar-Signature" = "sha256=$sig" }
+$target = "$($Url.TrimEnd('/'))/api/ingest/$Domain" + $(if ($Org) { "?org=$Org" } else { "" })
+$resp = Invoke-WebRequest -UseBasicParsing -Method Post -Uri $target -Body $bytes `
+  -ContentType "application/json" -Headers @{ "X-Lodestar-Signature" = "sha256=$sig"; "X-Lodestar-Timestamp" = $ts }
 Write-Host "HTTP $($resp.StatusCode): $($resp.Content)" -ForegroundColor Green
 Write-Host "Now run:  python -m lodestar test-connector $Domain" -ForegroundColor Cyan
