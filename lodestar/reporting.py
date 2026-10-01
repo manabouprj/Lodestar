@@ -31,7 +31,8 @@ IMPACT = {
     "LDS-001": ("downtime", 8, 36), "LDS-002": ("downtime", 2, 8), "LDS-003": ("downtime", 6, 24),
     "LDS-004": ("downtime", 1, 6), "LDS-005": ("fraud", 0.5, 2.0), "LDS-006": ("records", 0.5, 1.0),
     "LDS-007": ("records", 0.05, 0.2), "LDS-008": ("records", 0.1, 0.4), "LDS-009": ("downtime", 8, 48),
-    "LDS-010": ("downtime", 12, 72),
+    "LDS-010": ("downtime", 12, 72), "LDS-011": ("loss", 0.3, 1.0), "LDS-012": ("loss", 0.5, 1.0),
+    "LDS-013": ("loss", 0.2, 0.6),
 }
 
 DECISIONS = {
@@ -50,6 +51,9 @@ DECISIONS = {
     "backup_immutability_pct": "Fund immutable / isolated backup for all crown-jewel systems",
     "waf_block_mode_pct": "Move all internet applications to WAF blocking mode within one release cycle",
     "cloud_critical_misconfig_count": "Enforce cloud guardrails (policy-as-code) to block critical misconfigurations",
+    "fraud_channel_coverage_pct": "Make real-time fraud scoring a go-live condition for every payment channel",
+    "fraud_alert_backlog_hours": "Fund fraud-operations capacity or automation to clear alerts within 24 hours",
+    "fraud_detection_rate_pct": "Approve the joint cyber-fraud fusion process and model re-training plan",
 }
 
 
@@ -76,9 +80,13 @@ def exposure_estimate(result: PipelineResult) -> dict[str, Any]:
             lo, hi = a * records * fe["cost_per_record"], b * records * fe["cost_per_record"]
             lo += 0.02 * fe["regulatory_fine_ceiling"] * a
             hi += 0.10 * fe["regulatory_fine_ceiling"] * b
+        elif kind == "loss":
+            value = max((by_id[i].evidence.get("exposed_value", 0) for i in c.finding_ids if i in by_id), default=0) or 500_000
+            lo, hi = a * value, b * value
         else:
             lo, hi = a * fe["downtime_cost_per_hour"], b * fe["downtime_cost_per_hour"]   # fraud/response cost proxy
-        likelihood = min(0.5, c.score / 100 * 0.25)   # annualised probability of the path being exploited
+        # annualised probability of the path being exploited; fraud paths are already in progress
+        likelihood = min(0.8, c.score / 100 * 0.5) if kind == "loss" else min(0.5, c.score / 100 * 0.25)
         lo, hi = lo * likelihood, hi * likelihood
         lo_t += lo
         hi_t += hi
@@ -113,6 +121,8 @@ def build_context(result: PipelineResult, period: str, llm_cfg: dict | None = No
             k["trend"] = "improving" if better else "worsening"
     breaches = [k for k in kris if k["status"] == "breach" and k["metric"] != "posture_score"]
     decisions = [DECISIONS[k["metric"]] for k in breaches if k["metric"] in DECISIONS]
+    if period == "quarterly":
+        decisions = decisions[:5]          # a board can act on a handful of asks, not a backlog
     exposure = exposure_estimate(result)
     window = hist[-days:] if hist else [snap]
     new_total = sum(h.new_findings for h in window)
@@ -146,6 +156,8 @@ def build_context(result: PipelineResult, period: str, llm_cfg: dict | None = No
         "incidents": snap.incidents, "new_total": new_total, "closed_total": closed_total,
         "compliance": {k: c for k, c in result.compliance.items() if not k.startswith("_")},
         "actions": result.actions[:15], "data_quality": result.data_quality, "trend": trend,
+        "decisions_pending": [d for d in result.decisions if d.get("status", "pending") == "pending"],
+        "fraud": next((c for c in result.controls if c.domain.value == "fraud"), None),
         "threats": v.threat_landscape, "crown_jewels": v.crown_jewel_services,
     }
 

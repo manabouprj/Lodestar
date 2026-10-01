@@ -88,6 +88,14 @@ footer{margin-top:40px;border-top:1px solid var(--rule);padding-top:12px;font-si
 <ol class="decisions">{% for d in decisions %}<li>{{ d }}</li>{% endfor %}</ol>
 {% endif %}
 
+{% if decisions_pending %}
+<h2>Waiting on people ({{ decisions_pending|length }})</h2>
+<p class="small">Agents have prepared these; no system is changed until the named role decides.</p>
+<div class="wrap"><table><thead><tr><th>When</th><th>Decision</th><th>Decides</th><th>Agents will not</th></tr></thead><tbody>
+{% for d in decisions_pending[:(12 if period == 'weekly' else 6)] %}<tr><td><span class="chip {{ 'breach' if d.urgency == 'now' else 'near' }}">{{ d.urgency|replace('_',' ') }}</span></td><td>{{ d.title }}{% if d.regulatory %} <span class="chip near">regulatory</span>{% endif %}</td><td>{{ d.deciders|join(', ') }}</td><td class="small">{{ d.will_not|join('; ') }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+
 <h2>Key risk indicators vs appetite</h2>
 <div class="wrap"><table>
 <thead><tr><th>Indicator</th><th class="num">Now</th><th class="num">Appetite</th><th class="num">Change</th><th>Trend</th><th>Status</th></tr></thead>
@@ -136,6 +144,14 @@ footer{margin-top:40px;border-top:1px solid var(--rule);padding-top:12px;font-si
 {% for k, c in compliance.items() %}<tr><td>{{ c.name }}</td><td class="num">{{ c.controls_mapped }}</td><td class="num">{{ c.at_risk }}</td><td class="num">{{ c.attention }}</td><td class="num">{{ c.readiness_pct|fmt('%') }}</td></tr>{% endfor %}
 </tbody></table></div>
 <p class="small">Applicable frameworks for {{ vertical.name }}: {{ vertical.frameworks|join(' · ') }}</p>
+{% endif %}
+
+{% if fraud %}
+<h2>Fraud &amp; financial crime</h2>
+<div class="wrap"><table><thead><tr><th>Confirmed loss (30d)</th><th>Prevented (30d)</th><th class="num">Detected before loss</th><th class="num">Alert backlog</th><th class="num">Channels scored real-time</th></tr></thead><tbody>
+<tr><td class="num">USD {{ "{:,.0f}".format(fraud.kpis.confirmed_loss_30d) }}</td><td class="num">USD {{ "{:,.0f}".format(fraud.kpis.prevented_30d) }}</td><td class="num">{{ fraud.kpis.detection_rate_pct|fmt('%') }}</td><td class="num">{{ fraud.kpis.alert_backlog_hours|fmt(' h') }}</td><td class="num">{{ fraud.kpis.channel_coverage_pct|fmt('%') }}</td></tr>
+</tbody></table></div>
+<p class="small">Cyber-enabled fraud paths are listed with the attack paths above. Source: {{ fraud.product }}.</p>
 {% endif %}
 
 {% if period == 'quarterly' %}

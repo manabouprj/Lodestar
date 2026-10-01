@@ -38,6 +38,7 @@ class Domain(str, Enum):
     DLP = "dlp"
     OT = "ot"
     BACKUP = "backup"
+    FRAUD = "fraud"
 
 
 class Severity(str, Enum):
@@ -207,4 +208,5 @@ class PipelineResult(BaseModel):
     data_quality: dict[str, Any] = Field(default_factory=dict)
     compliance: dict[str, Any] = Field(default_factory=dict)
     actions: list[dict[str, Any]] = Field(default_factory=list)
+    decisions: list[dict[str, Any]] = Field(default_factory=list)
     asset_names: dict[str, str] = Field(default_factory=dict)

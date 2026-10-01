@@ -45,6 +45,7 @@ class PipelineState:
     data_quality: dict[str, Any] = field(default_factory=dict)
     compliance: dict[str, Any] = field(default_factory=dict)
     actions: list[dict[str, Any]] = field(default_factory=list)
+    decisions: list[dict[str, Any]] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
 
 

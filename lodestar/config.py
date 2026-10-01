@@ -20,7 +20,7 @@ from .scoring import ScoringConfig
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV_RE = re.compile(r"\$\{([A-Z0-9_]+)(?::-([^}]*))?\}")
-SECRET_KEY_RE = re.compile(r"(secret|password|token|api_key|apikey|access_key|private_key)", re.I)
+SECRET_KEY_RE = re.compile(r"(secret|password|token|api_key|apikey|access_key|private_key|webhook_url|workflow_url)", re.I)
 
 
 class ConfigError(ValueError):
@@ -69,6 +69,7 @@ class Settings:
     llm: dict[str, Any]
     itsm: dict[str, Any]
     raw: dict[str, Any]
+    chatops: dict[str, Any] = field(default_factory=dict)
 
     def path(self, p: str | Path) -> Path:
         p = Path(p)
@@ -130,4 +131,5 @@ def load_settings(path: str | Path | None = None, overrides: dict[str, Any] | No
         llm=raw.get("llm") or {"provider": "none"},
         itsm=raw.get("itsm") or {"provider": "none", "dry_run": True},
         raw=raw,
+        chatops=raw.get("chatops") or {},
     )

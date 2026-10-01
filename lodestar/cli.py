@@ -7,6 +7,8 @@
   python -m lodestar export-dashboard --out dist/dashboard.html
   python -m lodestar serve [--host 0.0.0.0 --port 8080]
   python -m lodestar schedule [--interval-hours 4]   # long-running: pipeline + calendar-based reports
+  python -m lodestar chat ["what needs attention now"]   # talk to the prioritisation agent (same engine as Slack/Teams)
+  python -m lodestar notify [--channel slack|teams|stdout]  # push the focus brief
   python -m lodestar validate             # config, secrets and phase-readiness checks
   python -m lodestar agents               # print the agent catalogue
 """
@@ -134,9 +136,23 @@ def cmd_schedule(args) -> int:
     s = _settings(args)
     store = Store(s.sqlite_path)
     last_report_day = None
+    last_brief_day = None
     while True:
         try:
+            started = datetime.now(timezone.utc)
             res = Orchestrator(s, store=store).run()
+            cfg = s.chatops or {}
+            if cfg:
+                from .chatops import notifier
+                if notifier.channels(cfg):
+                    if cfg.get("alert_on_new_now_decisions", True):
+                        raised = {k: v["first_raised"] for k, v in store.decision_state(res.org_name).items()}
+                        for r in notifier.new_urgent(res, raised, started, cfg):
+                            print("  chat alert:", r, flush=True)
+                    if datetime.now().hour >= int(cfg.get("daily_brief_hour", 7)) and last_brief_day != datetime.now().date():
+                        for r in notifier.daily_brief(res, cfg):
+                            print("  daily brief:", r, flush=True)
+                        last_brief_day = datetime.now().date()
             print(f"[{datetime.now().isoformat(timespec='seconds')}] run ok: posture {res.snapshot.posture_score} "
                   f"today {res.snapshot.open_by_horizon['today']}", flush=True)
             today = datetime.now().date()
@@ -157,6 +173,59 @@ def cmd_schedule(args) -> int:
         if args.once:
             return 0
         time.sleep(max(0.25, args.interval_hours) * 3600)
+
+
+def _latest(s, org_slug=None):
+    from .decisions import overlay
+    from .store import Store
+    from .web import slug
+    store = Store(s.sqlite_path)
+    orgs = [o for o in store.list_orgs() if not org_slug or slug(o) == org_slug]
+    if not orgs:
+        raise SystemExit("No results in store. Run `python -m lodestar run` (or `demo`) first.")
+    return store, overlay(store, store.latest_result(orgs[0]))
+
+
+def cmd_chat(args) -> int:
+    """Talk to the prioritisation agent from the terminal - same engine as Slack/Teams."""
+    from .chatops import ChatEngine
+    from .decisions import record
+    s = _settings(args)
+    store, res = _latest(s, args.org)
+    eng = ChatEngine(res, (s.chatops or {}).get("dashboard_url"))
+    rec = (lambda d, c, r: record(store, res, d, c, r, channel="cli", itsm_cfg=s.itsm))
+
+    def show(text):
+        rep = eng.handle(text, args.role, rec)
+        print("\n" + rep.markdown().replace("**", "") + "\n")
+    if args.text:
+        show(" ".join(args.text))
+        return 0
+    print(f"LODESTAR chat - {res.org_name} (role: {args.role}). Type 'help', or 'quit'.")
+    while True:
+        try:
+            line = input("you> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return 0
+        if line.lower() in ("quit", "exit"):
+            return 0
+        show(line)
+
+
+def cmd_notify(args) -> int:
+    from .chatops import notifier
+    s = _settings(args)
+    _, res = _latest(s, args.org)
+    cfg = s.chatops or {}
+    if args.channel == "stdout" or not notifier.channels(cfg):
+        from .chatops import ChatEngine
+        print(ChatEngine(res, cfg.get("dashboard_url")).brief().markdown().replace("**", ""))
+        if args.channel != "stdout":
+            print("\n(no chat channel enabled in config - printed instead)")
+        return 0
+    for r in notifier.daily_brief(res, cfg, None if args.channel == "all" else args.channel):
+        print(" ", r)
+    return 0
 
 
 def cmd_validate(args) -> int:
@@ -229,6 +298,10 @@ def main(argv=None) -> int:
     dm = sub.add_parser("demo"); dm.add_argument("--out"); dm.add_argument("--as-of"); dm.set_defaults(fn=cmd_demo)
     sv = sub.add_parser("serve"); sv.add_argument("--host", default="127.0.0.1"); sv.add_argument("--port", type=int, default=8080)
     sv.set_defaults(fn=cmd_serve)
+    ch = sub.add_parser("chat"); ch.add_argument("text", nargs="*"); ch.add_argument("--org")
+    ch.add_argument("--role", default="ciso", choices=["exec", "analyst", "ciso"]); ch.set_defaults(fn=cmd_chat, phase=None, dataset=None)
+    nt = sub.add_parser("notify"); nt.add_argument("--channel", default="all", choices=["all", "slack", "teams", "stdout"])
+    nt.add_argument("--org"); nt.set_defaults(fn=cmd_notify, phase=None, dataset=None)
     sc = sub.add_parser("schedule"); sc.add_argument("--interval-hours", type=float, default=4.0)
     sc.add_argument("--once", action="store_true"); sc.set_defaults(fn=cmd_schedule, phase=None, dataset=None)
     v = sub.add_parser("validate"); v.add_argument("--phase", type=int); v.set_defaults(fn=cmd_validate, dataset=None)

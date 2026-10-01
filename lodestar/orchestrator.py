@@ -5,7 +5,7 @@ phase, runs it, computes KRIs/posture and persists the result.
     Phase 1  + EDR, VMDR, Identity, SOC, Email connectors,
              ThreatIntel, ControlAssurance, Prioritization  (see & prioritise)
     Phase 2  + Firewall, WAF, Proxy, ZTNA, PAM, Cloud,
-             Correlation, Action                            (attack paths & action)
+             Correlation, Action, Decision desk             (attack paths, action, human decisions)
     Phase 3  + SAST, DAST, Brand, AI, DLP, OT, Backup,
              ComplianceMapping                              (full coverage)
     Phase 4  + Narrative (LLM) & quarterly board reporting  (executive & scale)
@@ -26,6 +26,7 @@ from .agents.core import (
     ControlAssuranceAgent,
     CorrelationAgent,
     DataQualityAgent,
+    DecisionAgent,
     PrioritizationAgent,
     ThreatIntelAgent,
 )
@@ -52,7 +53,7 @@ def build_pipeline(settings: Settings) -> list[BaseAgent]:
     stages += build_connector_agents(settings, p)
     stages += [DataQualityAgent()]
     for agent in (ThreatIntelAgent(), ControlAssuranceAgent(), CorrelationAgent(), PrioritizationAgent(),
-                  ComplianceMappingAgent(), ActionAgent()):
+                  ComplianceMappingAgent(), ActionAgent(), DecisionAgent()):
         if agent.phase <= p:
             stages.append(agent)
     return stages
@@ -100,7 +101,7 @@ class Orchestrator:
             org_name=self.settings.org_name, vertical=self.vertical.id, generated_at=now,
             findings=state.findings, controls=state.controls, correlations=state.correlations,
             snapshot=snap, history=history, data_quality=state.data_quality, compliance=state.compliance,
-            actions=state.actions,
+            actions=state.actions, decisions=state.decisions,
             asset_names={a.asset_id: a.name for a in state.assets.values()})
         if persist:
             self.store.save_result(result)

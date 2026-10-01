@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from .agents.connectors.domains import SPECS
+from .chatops.engine import precomputed
 from .metrics import kri_table
 from .models import Domain, Horizon, PipelineResult, Status
 from .verticals import load_vertical
@@ -36,6 +37,22 @@ def _delta(history, key: str, days: int):
     if a is None or b is None:
         return None
     return round(b - a, 1)
+
+
+def _fraud(result: PipelineResult, assets: dict[str, str]) -> dict[str, Any] | None:
+    ctl = next((c for c in result.controls if c.domain == Domain.FRAUD), None)
+    if not ctl:
+        return None
+    items = [f for f in result.findings if f.domain == Domain.FRAUD and f.status in ACTIVE
+             and f.horizon in (Horizon.TODAY, Horizon.THIS_WEEK)]
+    return {
+        "product": ctl.product, "kpis": ctl.kpis, "status": ctl.status, "issues": ctl.health_issues,
+        "paths": [{"title": c.title, "entity": c.entity, "score": c.score, "rule": c.rule_id,
+                   "domains": [d.value for d in c.domains], "action": c.recommended_action}
+                  for c in result.correlations if Domain.FRAUD in c.domains],
+        "items": [_finding_row(f, assets) for f in sorted(items, key=lambda x: -x.score)[:30]],
+        "decisions": [d["decision_id"] for d in result.decisions if d["type"] in ("fraud_response", "str_filing")],
+    }
 
 
 def build_payload(result: PipelineResult, assets: dict[str, str] | None = None) -> dict[str, Any]:
@@ -88,6 +105,9 @@ def build_payload(result: PipelineResult, assets: dict[str, str] | None = None) 
         "kris": kris, "trend": trend, "compliance": compliance,
         "team_load": dict(team_load.most_common()),
         "actions": result.actions[:40],
+        "decisions": result.decisions[:30],
+        "chat": precomputed(result),
+        "fraud": _fraud(result, assets),
         "data_quality": {k: result.data_quality.get(k) for k in ("trust_score", "confidence", "asset_match_rate_pct", "stale_connectors",
                          "mandatory_controls_missing", "duplicates_removed", "today_deferred", "phase", "agent_failures")},
     }

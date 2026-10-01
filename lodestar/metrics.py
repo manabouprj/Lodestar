@@ -63,6 +63,10 @@ def compute_kris(findings: list[Finding], controls: list[ControlHealth], correla
         "waf_block_mode_pct": _kpi(ctl, "waf", "block_mode_pct"),
         "ot_unmanaged_remote_access_count": _kpi(ctl, "ot", "unmanaged_remote_access"),
         "backup_immutability_pct": _kpi(ctl, "backup", "immutable_pct"),
+        "fraud_detection_rate_pct": _kpi(ctl, "fraud", "detection_rate_pct"),
+        "fraud_alert_backlog_hours": _kpi(ctl, "fraud", "alert_backlog_hours"),
+        "fraud_channel_coverage_pct": _kpi(ctl, "fraud", "channel_coverage_pct"),
+        "fraud_confirmed_loss_30d": _kpi(ctl, "fraud", "confirmed_loss_30d"),
         "shadow_ai_users": _kpi(ctl, "web_proxy", "shadow_ai_users", _kpi(ctl, "ai_security", "unsanctioned_ai_apps")),
     }
     return {key: round(float(v), 2) for key, v in k.items() if v is not None}

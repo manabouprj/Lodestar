@@ -5,7 +5,7 @@ description: Airlines, airports and MRO organisations.
 frameworks: [NIST CSF 2.0, ISO/IEC 27001:2022, ICAO Annex 17 (cyber), EASA Part-IS, GCAA aviation cyber requirements, PCI DSS v4.0.1, IEC 62443]
 regulators: [Civil aviation authority, EASA (for EU operations), Card schemes]
 mandatory_domains: [edr, vmdr, identity, soc, email, ot, brand, ztna, pam]
-domain_weights: {ot: 1.3, ztna: 1.15, brand: 1.15, email: 1.1, pam: 1.15}
+domain_weights: {fraud: 1.1, ot: 1.3, ztna: 1.15, brand: 1.15, email: 1.1, pam: 1.15}
 sla_days: {critical: 10, high: 20, medium: 45, low: 120}
 financial_exposure: {currency: USD, downtime_cost_per_hour: 900000, cost_per_record: 180, regulatory_fine_ceiling: 15000000}
 threat_landscape:

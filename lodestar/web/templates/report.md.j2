@@ -15,6 +15,15 @@
 {% endfor %}
 {% endif %}
 
+{% if decisions_pending %}
+## Waiting on people ({{ decisions_pending|length }})
+
+| When | Decision | Decides |
+|---|---|---|
+{% for d in decisions_pending[:(12 if period == 'weekly' else 6)] %}| {{ d.urgency|replace('_',' ') }} | {{ d.title }}{% if d.regulatory %} (regulatory){% endif %} | {{ d.deciders|join(', ') }} |
+{% endfor %}
+{% endif %}
+
 ## Key risk indicators vs appetite
 
 | Indicator | Now | Appetite | Change | Status |

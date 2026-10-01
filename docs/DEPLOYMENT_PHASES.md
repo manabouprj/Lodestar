@@ -9,7 +9,7 @@ an earlier one.
 |---:|---|---|---|
 | 0 Foundation | 0-2 | Orchestrator, AssetContext, DataQuality | Platform running, CMDB / crown jewels loaded, demo dashboard for stakeholders |
 | 1 See & prioritise | 3-6 | EDR, VMDR, Identity, SOC, Email connectors; ThreatIntel, ControlAssurance, Prioritization; weekly report | Daily Today list and weekly ops report |
-| 2 Attack paths & action | 7-10 | Firewall, WAF, Web proxy, ZTNA, PAM, Cloud connectors; Correlation, Action (+ ITSM in dry-run) | Toxic combinations, owner-assigned remediation drafts |
+| 2 Attack paths, decisions & chat | 7-10 | Firewall, WAF, Web proxy, ZTNA, PAM, Cloud, **Fraud** connectors; Correlation, Action, **Decision desk**, **Slack/Teams ChatOps** (+ ITSM in dry-run) | Toxic combinations, accountable human decisions, focus brief in chat |
 | 3 Full coverage | 11-14 | SAST, DAST, Brand, AI security, DLP, OT, Backup connectors; ComplianceMapping; monthly report | Framework readiness, AI and OT risk in one view |
 | 4 Executive & scale | 15-18 | Narrative (optional LLM), quarterly board report, further entities / verticals, ITSM live submission | Board pack, multi-entity roll-out |
 
@@ -45,8 +45,11 @@ an earlier one.
 1. Enable firewall, WAF, web proxy, ZTNA, PAM, cloud connectors. Set `LODESTAR_WEBHOOK_SECRET` for webhook adapters and configure the sending product / SOAR to sign payloads (HMAC-SHA256 header `X-Lodestar-Signature: sha256=<hex>`).
 2. `deployment_phase: 2`; review the correlation rules with the SOC; disable any that do not fit by removing them from `RULES`.
 3. Configure `itsm` with `dry_run: true`; approve a sample of actions and review payloads with the service-management owner.
+4. Agree the Decision-desk RACI: map each decider role in `PLAYBOOKS` (decision.py) to real people; give decision-authority (`ciso`) keys / chat mappings to the CISO, MLRO, Head of Fraud and OT manager. See HUMAN_IN_THE_LOOP.md.
+5. Financial institutions: connect the fraud engine (`fraud` connector, webhook or file drop) and review LDS-011..013 with the Head of Fraud. See FRAUD_MANAGEMENT.md.
+6. ChatOps: create the Slack app and/or Teams Workflows + outgoing webhook (CHATOPS.md); start with the daily brief to one private leadership channel, then add team channels.
 
-**Exit criteria:** attack paths reviewed weekly; ≥ 80 % of Today items have an owner team; ITSM payload format signed off.
+**Exit criteria:** attack paths reviewed weekly; ≥ 80 % of Today items have an owner team; every *now* decision gets a verdict before its deadline for two consecutive weeks; ITSM payload format signed off.
 
 ## Phase 3 - Full coverage
 
@@ -68,4 +71,4 @@ an earlier one.
 ## Rollback
 
 Every phase is a configuration change. Lower `deployment_phase` and restart; data already
-collected is kept. Container images are versioned (`lodestar:1.0.0`).
+collected is kept. Container images are versioned (`lodestar:1.1.0`).

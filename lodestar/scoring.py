@@ -51,6 +51,7 @@ DOMAIN_OWNER = {
     "sast": "Application Security", "dast": "Application Security", "waf": "Application Security",
     "brand": "Threat Intelligence", "email": "Messaging Security", "ai_security": "AI Governance",
     "dlp": "Data Protection", "ot": "OT Security", "backup": "Infrastructure / Resilience",
+    "fraud": "Fraud Operations",
 }
 
 

@@ -149,6 +149,30 @@ RULES: tuple[Rule, ...] = (
          "A critical system has no immutable backup AND has active threats or exploitable vulnerabilities.",
          "Enable immutable/air-gapped backup and run a restore test this week; remediate the exposure.",
          ("T1486", "T1490")),
+    # ---- cyber-enabled fraud (financial institutions, wallets, loyalty, telco) ----
+    Rule("LDS-011", "Cyber-enabled fraud: lookalike phishing driving customer account takeover", "key",
+         (all_of(d(Domain.BRAND), ftype(FindingType.EXPOSURE)),
+          all_of(d(Domain.FRAUD), tag("ato"))),
+         Severity.CRITICAL,
+         "A live lookalike domain is harvesting credentials AND the fraud engine sees account takeover from sessions "
+         "referred by that domain - cyber and fraud teams are looking at the same campaign.",
+         "Joint cyber-fraud response: takedown + block the domain, step-up authentication and payment holds for "
+         "affected accounts, customer notification.", ("T1566.002", "T1078")),
+    Rule("LDS-012", "Compromised employee credentials linked to anomalous payment", "user",
+         (all_of(d(Domain.BRAND, Domain.IDENTITY), ftype(FindingType.EXPOSURE, FindingType.DETECTION)),
+          all_of(d(Domain.FRAUD), tag("internal"))),
+         Severity.CRITICAL,
+         "An employee's credentials are exposed or used riskily AND the same identity approved an anomalous payment - "
+         "insider fraud or account misuse.",
+         "Hold or recall the payment, suspend the employee's payment rights, reset credentials, preserve evidence.",
+         ("T1078", "T1657")),
+    Rule("LDS-013", "Bot-driven account takeover on a customer channel", "app",
+         (all_of(d(Domain.WAF), ftype(FindingType.DETECTION), sev_at_least(Severity.HIGH)),
+          all_of(d(Domain.FRAUD), tag("ato"))),
+         Severity.HIGH,
+         "Credential stuffing against a customer-facing login AND confirmed account-takeover activity on the same channel.",
+         "Turn on bot management and device-bound step-up for the login; reset affected customer credentials.",
+         ("T1110.004",)),
 )
 
 

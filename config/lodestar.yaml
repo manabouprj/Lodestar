@@ -51,6 +51,26 @@ itsm:
   api_token: ${ITSM_API_TOKEN:-}
   project_key: SEC              # jira project / servicenow assignment group prefix
 
+# Slack / Microsoft Teams: chat with the prioritisation agent and receive the focus brief.
+# Agents only inform and prepare; decisions are recorded by mapped roles and audit-logged.
+chatops:
+  dashboard_url: ${LODESTAR_PUBLIC_URL:-http://127.0.0.1:8080}
+  daily_brief_hour: 7            # local time; scheduler posts "what needs attention now"
+  alert_on_new_now_decisions: true
+  slack:
+    enabled: false
+    bot_token: ${SLACK_BOT_TOKEN:-}            # chat:write, commands, app_mentions:read, im:history
+    signing_secret: ${SLACK_SIGNING_SECRET:-}
+    webhook_url: ${SLACK_WEBHOOK_URL:-}        # alternative: post-only incoming webhook
+    channel: "#security-leadership"
+    user_roles: {}                             # {U0123ABCD: ciso, U0456EFGH: analyst}
+    team_channels: {}                          # {"Identity & Access": "#iam-team"}
+  teams:
+    enabled: false
+    workflow_url: ${TEAMS_WORKFLOW_URL:-}      # Teams Workflows "post to channel when a webhook request is received"
+    outgoing_webhook_token: ${TEAMS_OUTGOING_WEBHOOK_TOKEN:-}
+    user_roles: {}                             # {"<entra-object-id>": ciso}
+
 # One entry per control domain. adapter: mock | file_drop | webhook | ms_graph_security | entra_identity_protection | tenable_vm
 connectors:
   # ---- Phase 1 --------------------------------------------------------------
@@ -74,6 +94,7 @@ connectors:
   pam:      {enabled: true, adapter: file_drop, product: CyberArk PAM, settings: {path: data/drop/pam}}
   cloud:    {enabled: true, adapter: ms_graph_security, product: Microsoft Defender for Cloud,
              settings: {tenant_id: "${AZ_TENANT_ID:-}", client_id: "${AZ_CLIENT_ID:-}", client_secret: "${AZ_CLIENT_SECRET:-}"}}
+  fraud:    {enabled: true, adapter: webhook, product: Feedzai}     # fraud engine / case manager pushes alerts + KPIs
   # ---- Phase 3 --------------------------------------------------------------
   sast:     {enabled: true, adapter: webhook, product: Checkmarx One}
   dast:     {enabled: true, adapter: webhook, product: Invicti}

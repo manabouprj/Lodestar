@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS findings (org TEXT, finding_id TEXT, domain TEXT, sta
     horizon TEXT, first_seen TEXT, resolved_at TEXT, data TEXT, PRIMARY KEY (org, finding_id));
 CREATE TABLE IF NOT EXISTS webhook (domain TEXT, finding_id TEXT, received_at TEXT, data TEXT,
     PRIMARY KEY (domain, finding_id));
+CREATE TABLE IF NOT EXISTS decisions (org TEXT, decision_id TEXT, first_raised TEXT, status TEXT DEFAULT 'pending',
+    choice TEXT, role TEXT, note TEXT, decided_at TEXT, PRIMARY KEY (org, decision_id));
 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, actor TEXT, event TEXT, details TEXT);
 """
 
@@ -109,6 +111,27 @@ class Store:
         with self._conn() as c:
             rows = c.execute("SELECT data FROM webhook WHERE domain=? AND received_at>=?", (domain, since)).fetchall()
         return [json.loads(r[0]) for r in rows]
+
+    # ---- human decisions (decision desk) ------------------------------------
+    def decision_state(self, org: str) -> dict[str, dict[str, Any]]:
+        with self._conn() as c:
+            rows = c.execute("SELECT decision_id, first_raised, status, choice, role, note, decided_at FROM decisions "
+                             "WHERE org=?", (org,)).fetchall()
+        return {r[0]: {"first_raised": datetime.fromisoformat(r[1]), "status": r[2], "choice": r[3], "role": r[4],
+                       "note": r[5], "decided_at": r[6]} for r in rows}
+
+    def register_decisions(self, org: str, ids: list[str], when: datetime) -> None:
+        with self._lock, self._conn() as c:
+            c.executemany("INSERT OR IGNORE INTO decisions (org, decision_id, first_raised) VALUES (?,?,?)",
+                          [(org, i, when.isoformat()) for i in ids])
+
+    def record_decision(self, org: str, decision_id: str, status: str, choice: str, role: str, note: str = "") -> None:
+        with self._lock, self._conn() as c:
+            c.execute("INSERT INTO decisions (org, decision_id, first_raised, status, choice, role, note, decided_at) "
+                      "VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(org, decision_id) DO UPDATE SET status=excluded.status, "
+                      "choice=excluded.choice, role=excluded.role, note=excluded.note, decided_at=excluded.decided_at",
+                      (org, decision_id, datetime.now(timezone.utc).isoformat(), status, choice, role, note,
+                       datetime.now(timezone.utc).isoformat()))
 
     # ---- audit ------------------------------------------------------------
     def audit(self, actor: str, event: str, details: dict[str, Any] | None = None) -> None:

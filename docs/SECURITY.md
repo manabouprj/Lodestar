@@ -15,6 +15,8 @@ It is designed and should be operated as a tier-0 security system.
 | LLM leaking data or inventing numbers | Off by default; sends only aggregated facts; output discarded if it contains numbers not present in the facts | Use an enterprise LLM agreement with no training on inputs |
 | Container compromise | Non-root user, read-only filesystem, `no-new-privileges`, all capabilities dropped, bound to 127.0.0.1 | Scan image in CI; patch base image monthly |
 | Tampering / repudiation | Audit table for every agent run, approval, pipeline run and ingest | Ship audit to SIEM |
+| Spoofed Slack / Teams requests | Slack v0 signing-secret verification with 5-minute replay window; Teams outgoing-webhook HMAC; unmapped chat users are read-only | Publish only `/api/chat/*` externally; private channels only |
+| A decision taken by the wrong person | Role check per decision type (regulatory, risk acceptance and safety-critical need decision authority); verdict audit with channel and user | Keep chat role mappings in change control |
 | Web attacks on the dashboard | Strict CSP, `X-Frame-Options: DENY`, `nosniff`, all dynamic text HTML-escaped | — |
 
 ## Data handled
@@ -28,3 +30,4 @@ webhook items 30 days (configurable).
 * no native OIDC/SAML in-app (use the proxy)
 * webhook has no timestamp-based replay window yet
 * SQLite file should sit on an encrypted volume
+* Teams decisions are text commands until a Bot Framework app with card actions is added

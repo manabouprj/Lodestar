@@ -41,6 +41,14 @@ ORGS: dict[str, dict[str, Any]] = {
 }
 
 OT_VERTICALS = {"aviation", "energy", "power_utilities", "logistics_ports"}
+FRAUD_VERTICALS = {"banking", "fintech", "retail", "telecom", "aviation"}
+FRAUD_FLAVOUR = {
+    "banking": ("Account-takeover surge on mobile banking", "customers", "Authorised-push-payment scam cluster"),
+    "fintech": ("Wallet account-takeover surge", "wallet users", "Authorised-push-payment scam cluster"),
+    "retail": ("Loyalty and stored-card account takeover surge", "shoppers", "Refund and gift-card abuse ring"),
+    "telecom": ("SIM-swap enabled account takeover surge", "subscribers", "Subscription / device-financing fraud ring"),
+    "aviation": ("Loyalty miles account takeover surge", "members", "Miles-to-voucher cash-out ring"),
+}
 
 KEV_SAMPLE = ["CVE-2023-4966", "CVE-2024-3400", "CVE-2023-46805", "CVE-2021-44228", "CVE-2023-34362",
               "CVE-2024-21762", "CVE-2023-20198", "CVE-2024-1709", "CVE-2023-22515", "CVE-2022-41040",
@@ -405,6 +413,58 @@ class Gen:
         self.add("backup", finding_type="coverage_gap", title="Quarterly restore test overdue for 4 critical systems",
                  severity="medium", first_seen=self.ago(30, 45))
 
+    # ------------------------------------------------------------------ fraud (financial crime)
+    def fraud(self):
+        """Cyber-enabled fraud scenarios + fraud-operations noise. Separate RNG so other domains stay stable."""
+        if self.v not in FRAUD_VERTICALS:
+            return
+        r = random.Random(self.meta["seed"] + 7)
+        ato_title, who, scam = FRAUD_FLAVOUR[self.v]
+        app = next((a for a in self.crown_apps if a["exposure"] == "internet"), self.crown_apps[0])
+        look = f"{self.dom.split('.')[0]}-verify-login.example"
+        insider = self.users[44]
+        # S11 lookalike phishing -> customer account takeover (cyber-enabled fraud)
+        self.add("fraud", finding_type="detection", title=f"{ato_title}: 214 {who}, sessions referred from {look}",
+                 severity="critical", app_id=app["asset_id"], asset_id=app["asset_id"], entity_keys=[f"domain:{look}"],
+                 evidence={"tags": ["ato"], "accounts": 214, "exposed_value": 1_900_000, "currency": "USD"},
+                 first_seen=self.ago(0.3, 1.0),
+                 remediation="Step-up authentication for affected accounts, hold new-payee transfers, notify customers.")
+        # S13 bot-driven credential stuffing against the same app
+        self.add("waf", finding_type="detection", title="Credential-stuffing campaign against login API (2.1M attempts / 24h)",
+                 severity="high", app_id=app["asset_id"], asset_id=app["asset_id"], first_seen=self.ago(0.5, 1.5),
+                 evidence={"attempts_24h": 2_100_000, "success_rate_pct": 0.4},
+                 remediation="Enable bot management challenge on login, rate-limit by device fingerprint.")
+        # S12 compromised employee credentials -> anomalous payment approval
+        self.add("fraud", finding_type="detection", title="Anomalous high-value payment approval by employee (new beneficiary, off-hours)",
+                 severity="critical", user_id=insider["user_id"], first_seen=self.ago(0.1, 0.5),
+                 evidence={"tags": ["internal"], "exposed_value": 640_000, "currency": "USD", "beneficiary_age_days": 1},
+                 remediation="Hold/recall the payment, suspend payment-approval rights, verify with employee out of band.")
+        # Mule network -> regulator reporting decision (MLRO) - regulated financial institutions only
+        if self.v in ("banking", "fintech"):
+            self.add("fraud", finding_type="detection", title="Mule-account network detected: 23 accounts sharing device fingerprints",
+                     severity="high", first_seen=self.ago(0.5, 2),
+                     evidence={"tags": ["mule"], "accounts": 23, "exposed_value": 1_200_000, "currency": "USD"},
+                     remediation="Freeze accounts pending review; MLRO to decide on suspicious transaction report.")
+        self.add("fraud", finding_type="detection", title=f"{scam}: 61 victims in 7 days", severity="high",
+                 first_seen=self.ago(1, 4), evidence={"tags": ["app_scam"], "exposed_value": 380_000, "currency": "USD"},
+                 remediation="Add confirmation-of-payee warning and cooling-off for first-time high-value payees.")
+        # fraud-control health issues
+        self.add("fraud", finding_type="coverage_gap", title="Instant-payments channel not covered by real-time fraud scoring",
+                 severity="high", first_seen=self.ago(20, 45),
+                 remediation="Route instant-payment API through the fraud engine before go-live of new limits.")
+        self.add("fraud", finding_type="misconfiguration", title="3 high-yield fraud rules disabled after false-positive complaints",
+                 severity="medium", first_seen=self.ago(10, 30))
+        self.add("fraud", finding_type="misconfiguration", title="Fraud model drift: precision down 18% in 30 days",
+                 severity="medium", first_seen=self.ago(3, 10))
+        # fraud-ops noise (mostly worked by analysts already)
+        titles = [("Card-not-present velocity alert", "low"), ("New payee + high-value transfer", "medium"),
+                  ("Device change followed by password reset", "medium"), ("SIM-swap indicator before login", "high"),
+                  ("Gift-card bulk purchase pattern", "low"), ("Geo-velocity anomaly on card", "low")]
+        for _ in range(r.randint(70, 110)):
+            t, sv = r.choice(titles)
+            self.add("fraud", finding_type="detection", title=t, severity=sv, user_id=r.choice(self.users)["user_id"],
+                     status="resolved" if r.random() < 0.82 else "open", first_seen=(self.as_of - timedelta(days=r.uniform(0, 30))).isoformat())
+
     # ------------------------------------------------------------------ control health
     def health(self) -> dict[str, dict]:
         r, v = self.r, self.v
@@ -439,6 +499,11 @@ class Gen:
         if ot:
             h["ot"] = (71.0, 2, 4, ["2 sites without passive OT sensor"], {"ot_assets_visible_pct": 71.0, "unmanaged_remote_access": 2,
                        "critical_ot_vulns": 9, "ics_alerts": 14})
+        if v in FRAUD_VERTICALS:
+            h["fraud"] = (88.0, 1, 3, ["Instant-payments channel not scored in real time", "3 rules disabled"],
+                          {"channel_coverage_pct": 88.0, "alert_backlog_hours": 31.0, "confirmed_loss_30d": 412_000,
+                           "prevented_30d": 9_800_000, "detection_rate_pct": 96.0, "false_positive_pct": 91.0,
+                           "ato_attempts_7d": 1840, "mule_accounts_detected": 23, "fraud_alerts_open": 340})
         # vertical flavour: jitter so every org looks different
         out = {}
         for d, (cov, fresh, drift, issues, kpis) in h.items():
@@ -458,6 +523,7 @@ class Gen:
         self.build_estate(crown)
         self.scenarios()
         self.noise()
+        self.fraud()
         health = self.health()
         domains = {}
         for d, items in self.f.items():
@@ -479,6 +545,7 @@ PRODUCTS = {
     "web_proxy": "Zscaler Internet Access", "ztna": "Zscaler Private Access", "pam": "CyberArk PAM",
     "cloud": "Wiz CNAPP", "sast": "Checkmarx One", "dast": "Invicti", "brand": "Recorded Future Brand Intelligence",
     "ai_security": "Prompt Security", "dlp": "Microsoft Purview DLP", "ot": "Claroty xDome", "backup": "Rubrik Security Cloud",
+    "fraud": "Feedzai",
 }
 
 

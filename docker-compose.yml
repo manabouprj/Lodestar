@@ -3,7 +3,7 @@
 services:
   api:
     build: .
-    image: lodestar:1.0.0
+    image: lodestar:1.1.0
     env_file: .env
     environment:
       LODESTAR_CONFIG: /app/config/lodestar.yaml
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   scheduler:
-    image: lodestar:1.0.0
+    image: lodestar:1.1.0
     depends_on: [api]
     env_file: .env
     environment:

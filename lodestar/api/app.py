@@ -107,7 +107,8 @@ def _results(store: Store) -> dict[str, PipelineResult]:
     for org in store.list_orgs():
         r = store.latest_result(org)
         if r:
-            out[slug(org)] = r
+            from ..decisions import overlay
+            out[slug(org)] = overlay(store, r)
     return out
 
 
@@ -225,6 +226,122 @@ def approve(action_id: str, org: Optional[str] = None, role: str = Depends(need(
     outcome = submit(action, get_settings().itsm)
     get_store().audit(role, "action_approved", {"action_id": action_id, "org": r.org_name, "itsm": outcome.get("submitted")})
     return {"action_id": action_id, "approved_by_role": role, **outcome}
+
+
+@app.get("/api/decisions")
+def decisions(org: Optional[str] = None, status: Optional[str] = "pending", role: str = Depends(need("exec"))):
+    r = _result(get_store(), org)
+    return [d for d in r.decisions if status in (None, "all") or d["status"] == status]
+
+
+@app.post("/api/decisions/{decision_id}")
+async def decide(decision_id: str, request: Request, org: Optional[str] = None, role: str = Depends(need("analyst"))):
+    from ..decisions import DecisionError, record
+    body = await request.json()
+    try:
+        return record(get_store(), _result(get_store(), org), decision_id, str(body.get("choice", "")), role,
+                      note=str(body.get("note", "")), channel="dashboard", itsm_cfg=get_settings().itsm)
+    except DecisionError as exc:
+        raise HTTPException(exc.code, str(exc)) from exc
+
+
+# ---------------------------------------------------------------- chat (dashboard, Slack, Teams)
+def _chat(org: Optional[str] = None):
+    from ..chatops import ChatEngine
+    s = get_settings()
+    return ChatEngine(_result(get_store(), org), (s.chatops or {}).get("dashboard_url"))
+
+
+def _recorder(org: Optional[str], channel: str, actor: str):
+    from ..decisions import record
+
+    def rec(decision_id: str, choice: str, role: str):
+        return record(get_store(), _result(get_store(), org), decision_id, choice, role, channel=channel,
+                      actor=actor, itsm_cfg=get_settings().itsm)
+    return rec
+
+
+@app.post("/api/chat/ask")
+async def chat_ask(request: Request, org: Optional[str] = None, role: str = Depends(need("exec"))):
+    body = await request.json()
+    reply = _chat(org).handle(str(body.get("text", ""))[:500], role, _recorder(org, "dashboard-chat", role))
+    return {"title": reply.title, "lines": reply.lines, "intent": reply.intent,
+            "buttons": [b.__dict__ for b in reply.buttons]}
+
+
+@app.post("/api/chat/slack/commands")
+async def slack_command(request: Request):
+    from urllib.parse import parse_qs
+
+    from ..chatops import slack
+    cfg = (get_settings().chatops or {}).get("slack") or {}
+    body = await request.body()
+    if not slack.verify(cfg.get("signing_secret", ""), request.headers.get("X-Slack-Request-Timestamp", ""), body,
+                        request.headers.get("X-Slack-Signature", "")):
+        raise HTTPException(401, "Invalid Slack signature")
+    form = {k: v[0] for k, v in parse_qs(body.decode()).items()}
+    user = form.get("user_id", "")
+    role = slack.role_for(user, cfg)
+    reply = _chat().handle(form.get("text", ""), role, _recorder(None, "slack", user))
+    return slack.message(reply)
+
+
+@app.post("/api/chat/slack/interactions")
+async def slack_interaction(request: Request):
+    from urllib.parse import parse_qs
+
+    from ..chatops import slack
+    cfg = (get_settings().chatops or {}).get("slack") or {}
+    body = await request.body()
+    if not slack.verify(cfg.get("signing_secret", ""), request.headers.get("X-Slack-Request-Timestamp", ""), body,
+                        request.headers.get("X-Slack-Signature", "")):
+        raise HTTPException(401, "Invalid Slack signature")
+    payload = json.loads(parse_qs(body.decode()).get("payload", ["{}"])[0])
+    user = (payload.get("user") or {}).get("id", "")
+    action = (payload.get("actions") or [{}])[0]
+    val = json.loads(action.get("value") or "{}")
+    reply = _chat().handle(f"decide {val.get('d', '')} {val.get('c', '')}", slack.role_for(user, cfg),
+                           _recorder(None, "slack", user))
+    return {"replace_original": False, "response_type": "ephemeral", "text": reply.title, "blocks": slack.blocks(reply)}
+
+
+@app.post("/api/chat/slack/events")
+async def slack_events(request: Request):
+    import asyncio
+
+    from ..chatops import slack
+    cfg = (get_settings().chatops or {}).get("slack") or {}
+    body = await request.body()
+    if not slack.verify(cfg.get("signing_secret", ""), request.headers.get("X-Slack-Request-Timestamp", ""), body,
+                        request.headers.get("X-Slack-Signature", "")):
+        raise HTTPException(401, "Invalid Slack signature")
+    data = json.loads(body)
+    if data.get("type") == "url_verification":
+        return {"challenge": data.get("challenge")}
+    ev = data.get("event") or {}
+    if ev.get("bot_id") or ev.get("type") not in ("app_mention", "message"):
+        return {"ok": True}
+    import re as _re
+    text = _re.sub(r"<@[A-Z0-9]+>", "", ev.get("text", "")).strip()
+    user = ev.get("user", "")
+    reply = _chat().handle(text, slack.role_for(user, cfg), _recorder(None, "slack", user))
+    # answer asynchronously - Slack requires the HTTP ack within 3 seconds
+    asyncio.get_running_loop().run_in_executor(None, lambda: slack.post(reply, cfg, ev.get("channel")))
+    return {"ok": True}
+
+
+@app.post("/api/chat/teams/messages")
+async def teams_message(request: Request):
+    from ..chatops import teams
+    cfg = (get_settings().chatops or {}).get("teams") or {}
+    body = await request.body()
+    if not teams.verify(cfg.get("outgoing_webhook_token", ""), body, request.headers.get("Authorization", "")):
+        raise HTTPException(401, "Invalid Teams signature")
+    act = json.loads(body)
+    who = (act.get("from") or {}).get("aadObjectId", "")
+    reply = _chat().handle(teams.strip_mention(act.get("text", "")), teams.role_for(who, cfg),
+                           _recorder(None, "teams", who))
+    return teams.activity(reply)
 
 
 @app.post("/api/run")

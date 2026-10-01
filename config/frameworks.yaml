@@ -44,6 +44,7 @@ frameworks:
       dlp: [PR.DS-01, PR.DS-02]
       ot: [ID.AM-01, PR.IR-01, DE.CM-01]
       backup: [PR.DS-11, PR.IR-03]
+      fraud: [DE.AE-03, DE.CM-03]
 
   - name: ISO/IEC 27001:2022
     short: ISO27001
@@ -86,6 +87,7 @@ frameworks:
       dlp: [A.8.12]
       ot: [A.8.22, A.8.20]
       backup: [A.8.13]
+      fraud: [A.8.16]
 
   - name: PCI DSS v4.0.1
     short: PCI

@@ -4,8 +4,9 @@ from .compliance import ComplianceMappingAgent
 from .control_assurance import ControlAssuranceAgent
 from .correlation import CorrelationAgent
 from .data_quality import DataQualityAgent
+from .decision import DecisionAgent
 from .prioritization import PrioritizationAgent
 from .threat_intel import ThreatIntelAgent
 
 __all__ = ["ActionAgent", "AssetContextAgent", "ComplianceMappingAgent", "ControlAssuranceAgent",
-           "CorrelationAgent", "DataQualityAgent", "PrioritizationAgent", "ThreatIntelAgent"]
+           "CorrelationAgent", "DataQualityAgent", "DecisionAgent", "PrioritizationAgent", "ThreatIntelAgent"]

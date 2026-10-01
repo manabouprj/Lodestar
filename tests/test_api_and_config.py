@@ -85,3 +85,20 @@ def test_file_drop_adapter_maps_csv(tmp_path):
         settings = load_settings()
     res = ad.fetch(Ctx())
     assert res.findings[0].severity.value == "high" and res.findings[0].asset_id == "fw-01"
+
+
+def test_chat_and_decision_api(client):
+    h = {"X-API-Key": "c" * 32}
+    r = client.post("/api/chat/ask", json={"text": "brief"}, headers=h).json()
+    assert r["intent"] == "brief"
+    dec = client.get("/api/decisions", headers=h).json()
+    target = next(d for d in dec if d["type"] == "containment")
+    out = client.post(f"/api/decisions/{target['decision_id']}", json={"choice": target["options"][0]}, headers=h).json()
+    assert out["status"] == "approved"
+    assert all(d["decision_id"] != target["decision_id"] for d in client.get("/api/decisions", headers=h).json())
+    assert client.post(f"/api/decisions/{target['decision_id']}", json={"choice": "x"}, headers={"X-API-Key": "e" * 32}).status_code == 403
+
+
+def test_slack_command_endpoint_requires_signature(client):
+    assert client.post("/api/chat/slack/commands", content=b"text=brief").status_code == 401
+    assert client.post("/api/chat/teams/messages", content=b"{}").status_code == 401

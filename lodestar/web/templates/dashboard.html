@@ -2,27 +2,37 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: navigator's chart-table. Header strip -> hero (posture + signal funnel) -> focus queue beside attack paths -> KRIs -> controls -> trend -> compliance -> actions. */
+/* Layout: security operations centre wall. Classification strip -> command header -> posture + funnel -> decision desk -> focus queue + attack paths -> chat + fraud -> KRIs -> controls -> trends -> compliance -> actions.
+   Dark-first by design (24x7 ops rooms, low glare); a light theme is available only when the viewer explicitly picks it. */
 :root{
-  --bg:#eef1f6; --panel:#ffffff; --panel-2:#f6f8fb; --ink:#14213a; --ink-2:#4a5670; --ink-3:#6f7a90; --rule:#d6dce7;
+  --bg:#060a11; --bg-glow:#0d1b33; --grid:rgba(110,150,210,.055);
+  --panel:#0c1320; --panel-2:#121b2b; --ink:#e4eaf4; --ink-2:#a0acc0; --ink-3:#71809a; --rule:#1f2c42;
+  --brass:#f0b23e; --brass-soft:#2a210f; --navy:#5ea3ff; --navy-soft:#10233f;
+  --good:#3fd17a; --good-bg:#0f2a1c; --warn:#f2c94c; --warn-bg:#2f2610; --serious:#ff9a5c; --serious-bg:#33200f; --crit:#ff5d5d; --crit-bg:#3a1418;
+  --tlp:#f0b23e; --tlp-ink:#130d02;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"IBM Plex Sans","Segoe UI",Arial,sans-serif; --mono:"IBM Plex Mono",Consolas,monospace;
+  --radius:6px; color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#eef1f6; --bg-glow:#dfe7f3; --grid:rgba(20,33,58,.04);
+  --panel:#ffffff; --panel-2:#f4f6fa; --ink:#14213a; --ink-2:#4a5670; --ink-3:#6f7a90; --rule:#d6dce7;
   --brass:#8a5d12; --brass-soft:#f4ead5; --navy:#1d4f91; --navy-soft:#dbe7f7;
   --good:#0b7a0b; --good-bg:#e3f3e3; --warn:#8a5a00; --warn-bg:#fbefd2; --serious:#b4470f; --serious-bg:#fbe5d9; --crit:#b42828; --crit-bg:#f9e0e0;
-  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"IBM Plex Sans","Segoe UI",Arial,sans-serif; --mono:"IBM Plex Mono",Consolas,monospace;
-  --radius:6px;
+  --tlp:#f0b23e; --tlp-ink:#130d02; color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0d1422; --panel:#141d2e; --panel-2:#192438; --ink:#e7ebf3; --ink-2:#aab4c8; --ink-3:#8590a6; --rule:#27334b;
-  --brass:#e2b25a; --brass-soft:#3a2f18; --navy:#7fa9ea; --navy-soft:#1d2d4a;
-  --good:#4cc35f; --good-bg:#15301c; --warn:#e8b63c; --warn-bg:#352a10; --serious:#f0905a; --serious-bg:#3a2216; --crit:#f07272; --crit-bg:#3d1b1d;
-  color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0d1422; --panel:#141d2e; --panel-2:#192438; --ink:#e7ebf3; --ink-2:#aab4c8; --ink-3:#8590a6; --rule:#27334b;
-  --brass:#e2b25a; --brass-soft:#3a2f18; --navy:#7fa9ea; --navy-soft:#1d2d4a;
-  --good:#4cc35f; --good-bg:#15301c; --warn:#e8b63c; --warn-bg:#352a10; --serious:#f0905a; --serious-bg:#3a2216; --crit:#f07272; --crit-bg:#3d1b1d;
-  color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--body);margin:0}
+body{background-color:var(--bg);color:var(--ink);font:14px/1.5 var(--body);margin:0;
+  background-image:radial-gradient(ellipse 90% 55% at 50% -10%,var(--bg-glow),transparent 70%),
+    linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:100% 100%,32px 32px,32px 32px;background-attachment:fixed}
+.tlp{background:var(--tlp);color:var(--tlp-ink);font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;text-align:center;padding:5px 16px}
+.panel,.desk{box-shadow:0 0 0 1px rgba(0,0,0,.02),0 8px 24px -16px rgba(0,0,0,.6)}
+.clockbox{font:500 12px var(--mono);color:var(--ink-2);display:flex;gap:10px;white-space:nowrap}
+.clockbox b{color:var(--ink);font-weight:500}
+.live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);margin-right:5px;vertical-align:middle}
+@media (prefers-reduced-motion:no-preference){.live{animation:pulse 2s infinite}@keyframes pulse{50%{opacity:.35}}}
+.theme-btn{background:var(--panel);border:1px solid var(--rule);border-radius:var(--radius);padding:6px 10px;cursor:pointer;font-size:12px}
 .wrap{max-width:1360px;margin:0 auto;padding-inline:20px;padding-block:0 48px}
 button,select{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
@@ -35,7 +45,7 @@ section{margin-top:28px}
 .sec-head p{margin:0;color:var(--ink-2);font-size:13px;max-width:70ch}
 
 /* header */
-.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--rule)}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--rule)}
 .top .wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-block:12px}
 .brand{display:flex;align-items:center;gap:10px;font:700 26px/1 var(--display);letter-spacing:.16em}
 .brand svg{width:26px;height:26px}
@@ -66,7 +76,7 @@ section{margin-top:28px}
 .mini .n{font:600 22px/1.1 var(--display);font-variant-numeric:tabular-nums}
 
 /* focus queue */
-.focus{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px}
+.focus{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px;align-items:start}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--rule);padding:0 12px;flex-wrap:wrap}
 .tab{background:none;border:0;border-bottom:3px solid transparent;padding:12px 10px 9px;cursor:pointer;font:600 16px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--brass)}
@@ -142,14 +152,79 @@ tr:last-child td{border-bottom:0}
 
 .approve{background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px;white-space:nowrap}
 .approve[aria-pressed="true"]{background:var(--good-bg);color:var(--good);border-color:transparent}
+/* decision desk */
+.desk{border:1px solid var(--rule);border-radius:var(--radius);background:var(--panel)}
+.desk-head{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--rule);background:var(--brass-soft);border-radius:var(--radius) var(--radius) 0 0}
+.desk-head .rule{font-size:13px;color:var(--ink);max-width:70ch}
+.desk-head .rule b{color:var(--brass)}
+.desk-counts{display:flex;gap:8px;flex-wrap:wrap}
+.cnt{display:flex;flex-direction:column;align-items:center;min-width:72px;padding:6px 10px;border-radius:4px;background:var(--panel)}
+.cnt .n{font:700 26px/1 var(--display);font-variant-numeric:tabular-nums}
+.cnt .t{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.08em}
+.cnt.now .n{color:var(--crit)} .cnt.today .n{color:var(--serious)} .cnt.reg .n{color:var(--brass)}
+.desk-filters{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--rule);flex-wrap:wrap;align-items:center}
+.desk-filters select{background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;padding:5px 8px;font-size:13px;max-width:100%}
+.dgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px 16px}
+.dcard{border:1px solid var(--rule);border-left:5px solid var(--ink-3);border-radius:4px;padding:12px 14px;display:grid;gap:8px;background:var(--panel);min-width:0}
+.dcard.u-now{border-left-color:var(--crit)} .dcard.u-today{border-left-color:var(--serious)} .dcard.u-this_week{border-left-color:var(--warn)}
+.dcard.done{opacity:.72;border-left-color:var(--good)}
+.dtop{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font:500 11px var(--mono)}
+.clock{font:600 12px var(--mono);color:var(--crit)} .clock.ok{color:var(--ink-2)}
+.dcard h3{margin:0;font:600 17px/1.25 var(--display);letter-spacing:.02em}
+.dwhy{font-size:13px;color:var(--ink-2);margin:0}
+.who{display:flex;gap:4px;flex-wrap:wrap}
+.who .chip{background:var(--navy-soft);color:var(--navy)}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;font-size:12px}
+.split ul{margin:2px 0 0;padding-left:0;list-style:none;display:grid;gap:2px}
+.split li{padding-left:16px;position:relative}
+.split .prep li::before{content:"✓";position:absolute;left:0;color:var(--good);font-weight:700}
+.split .wont li::before{content:"✕";position:absolute;left:0;color:var(--crit);font-weight:700}
+.ifnone{font-size:12px;color:var(--ink-2);border-top:1px dashed var(--rule);padding-top:6px}
+.opts{display:flex;gap:6px;flex-wrap:wrap}
+.opt{background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;padding:6px 9px;cursor:pointer;font-size:12px;text-align:left}
+.opt:hover{border-color:var(--brass)}
+.opt.primary{background:var(--brass);color:var(--tlp-ink);border-color:var(--brass);font-weight:600}
+.verdict{font-size:12px;font-weight:600;color:var(--good)}
+.more{display:block;margin:0 16px 14px;background:none;border:1px solid var(--rule);border-radius:4px;padding:7px 12px;cursor:pointer;font-size:13px}
+
+/* fraud */
+.fraud{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+.ftiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:14px 16px}
+.ftile{background:var(--panel-2);border-radius:4px;padding:8px 10px;min-width:0}
+.ftile .n{font:700 22px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.ftile .t{font-size:11px;color:var(--ink-2)}
+.ftile.bad .n{color:var(--crit)}
+.fl{list-style:none;margin:0;padding:0}
+.fl li{padding:9px 16px;border-top:1px solid var(--rule);font-size:13px}
+
+/* chat */
+.chat{display:grid;grid-template-rows:auto 1fr auto;max-height:620px;min-height:420px}
+.chat-head{padding:12px 16px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.chans{display:flex;gap:6px}
+.chan{font:600 11px var(--mono);padding:3px 7px;border-radius:3px;background:var(--panel-2);color:var(--ink-2)}
+.log{overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:92%;padding:9px 12px;border-radius:8px;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--navy);color:var(--bg)}
+.msg.bot{align-self:flex-start;background:var(--panel-2);border:1px solid var(--rule)}
+.msg.bot .h{font-weight:700;margin-bottom:4px}
+.msg.bot code{font:12px var(--mono);background:var(--panel);padding:0 3px;border-radius:2px}
+.msg .opts{margin-top:8px}
+.ask{border-top:1px solid var(--rule);padding:10px 12px;display:grid;gap:8px}
+.sugs{display:flex;gap:6px;flex-wrap:wrap}
+.sug{background:var(--panel);border:1px solid var(--rule);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+.ask form{display:flex;gap:8px}
+.ask input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;padding:8px 10px;color:var(--ink);font:inherit}
+.ask button[type=submit]{background:var(--brass);color:var(--tlp-ink);font-weight:600;border:0;border-radius:4px;padding:8px 14px;cursor:pointer}
+
 footer{margin-top:32px;font-size:12px;color:var(--ink-3);display:grid;gap:4px}
 
-@media (max-width:1000px){.hero,.focus,.two{grid-template-columns:minmax(0,1fr)}.steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:560px){.wrap{padding-inline:16px}.minis{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(2,minmax(0,1fr))}.step.path{grid-column:1/-1}
+@media (max-width:1000px){.hero,.focus,.two,.dgrid,.fraud{grid-template-columns:minmax(0,1fr)}.ftiles{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.cnt .t{font-size:10px;letter-spacing:.04em}.split{grid-template-columns:minmax(0,1fr)}.desk-counts{width:100%}.cnt{flex:1;min-width:0}.wrap{padding-inline:16px}.minis{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(2,minmax(0,1fr))}.step.path{grid-column:1/-1}
   .posture .big{font-size:64px}.item>button{grid-template-columns:48px minmax(0,1fr)}.due{grid-column:2;text-align:left}.detail{padding-left:12px}}
 @media (prefers-reduced-motion:no-preference){.bar>i{transition:width .5s ease}}
 </style>
 
+<div class="tlp" id="tlp">TLP:AMBER · limited distribution · security operations use only</div>
 <header class="top">
   <div class="wrap">
     <div class="brand" aria-label="LODESTAR">
@@ -162,6 +237,8 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-3);display:grid;gap:4px}
     <span class="pill" id="vertical-pill"></span>
     <span class="pill" id="asof-pill"></span>
     <span class="pill demo-flag" id="demo-pill" hidden>Fictional demo data</span>
+    <span class="clockbox" aria-label="Current time"><span><span class="live"></span>Local <b id="clk-l">--:--</b></span><span>UTC <b id="clk-u">--:--</b></span></span>
+    <button class="theme-btn" id="theme" type="button" aria-label="Switch colour theme">Light</button>
   </div>
 </header>
 
@@ -180,6 +257,23 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-3);display:grid;gap:4px}
     </div>
   </div>
 
+  <section id="desk-sec">
+    <div class="sec-head"><h2>Decision desk</h2><p>What needs a human now. Agents have investigated and prepared each item; they will not act on any system until the named role decides.</p></div>
+    <div class="desk">
+      <div class="desk-head">
+        <div class="rule"><b>Human-in-the-loop:</b> containment, emergency changes, takedowns, payment holds, regulatory reporting and risk acceptance are decided by people. Every verdict is audit-logged and only an approval releases the linked ticket.</div>
+        <div class="desk-counts" id="desk-counts"></div>
+      </div>
+      <div class="desk-filters">
+        <label class="label" for="f-decider">Decider</label><select id="f-decider"><option value="">All roles</option></select>
+        <label class="label" for="f-urg">When</label><select id="f-urg"><option value="">All</option><option value="now">Now</option><option value="today">Today</option><option value="this_week">This week</option></select>
+        <label class="label" for="f-pend"><input type="checkbox" id="f-pend" checked> Waiting only</label>
+      </div>
+      <div class="dgrid" id="desk"></div>
+      <button class="more" id="desk-more" hidden></button>
+    </div>
+  </section>
+
   <section>
     <div class="sec-head"><h2>Focus queue</h2><p>Ranked by the explainable LODESTAR Risk Score. Open any item to see why it is on the list and what fixes it.</p></div>
     <div class="focus">
@@ -196,6 +290,22 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-3);display:grid;gap:4px}
         <div class="sec-head"><h2 style="font-size:18px">Attack paths</h2><span class="pill" id="ap-count"></span></div>
         <div class="paths" id="paths"></div>
       </div>
+    </div>
+  </section>
+
+  <section class="two" id="chat-fraud">
+    <div>
+      <div class="sec-head"><h2>Ask LODESTAR</h2><p>Chat with the prioritisation agent. The same answers go to Slack and Microsoft Teams.</p></div>
+      <div class="panel chat">
+        <div class="chat-head"><span class="label">Prioritisation agent</span><span class="chans"><span class="chan">Slack /lodestar</span><span class="chan">Teams @LODESTAR</span><span class="chan">Dashboard</span></span></div>
+        <div class="log" id="chatlog" aria-live="polite"></div>
+        <div class="ask"><div class="sugs" id="sugs"></div>
+          <form id="askform"><label for="askq" class="label" hidden>Question</label><input id="askq" autocomplete="off" placeholder="Ask: what needs attention now?"><button type="submit">Ask</button></form></div>
+      </div>
+    </div>
+    <div id="fraud-col">
+      <div class="sec-head"><h2>Fraud &amp; financial crime</h2><p id="fraud-note">Cyber and fraud signals joined in one view.</p></div>
+      <div class="panel" id="fraud"></div>
     </div>
   </section>
 
@@ -286,7 +396,7 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
       .map(([n,t,c])=>`<div class="step ${c}"><div class="n">${n.toLocaleString()}</div><div class="t">${t}</div></div>`).join("");
     const pct = F.open ? (100*F.today/F.open).toFixed(1) : 0;
     $("#funnel-note").innerHTML = `Today's list is <b>${pct}%</b> of open signals. Correlation joined ${F.attack_paths} multi-control attack paths that no single tool reports on its own.`;
-    $("#minis").innerHTML = [["SLA breaches",P.sla_breaches],["Open incidents",P.incidents],["Integrated controls",P.controls.length+" / 18"],["CMDB match",fmt(P.data_quality.asset_match_rate_pct,"%")]]
+    $("#minis").innerHTML = [["SLA breaches",P.sla_breaches],["Open incidents",P.incidents],["Integrated controls",P.controls.length+" / "+(P.controls.length+P.not_integrated.length)],["CMDB match",fmt(P.data_quality.asset_match_rate_pct,"%")]]
       .map(([t,n])=>`<div class="mini"><div class="label">${t}</div><div class="n">${n}</div></div>`).join("");
     // filters
     const all = [...P.lists.today, ...P.lists.week, ...P.lists.month];
@@ -294,7 +404,7 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
     const doms = [...new Map(all.map(f=>[f.domain,f.domain_title])).entries()].sort((a,b)=>a[1].localeCompare(b[1]));
     $("#f-team").innerHTML = `<option value="">All teams</option>` + teams.map(t=>`<option>${esc(t)}</option>`).join("");
     $("#f-dom").innerHTML = `<option value="">All controls</option>` + doms.map(([k,t])=>`<option value="${k}">${esc(t)}</option>`).join("");
-    renderTabs(); renderQueue(); renderPaths(); renderKRIs(); renderControls(); renderTrend(); renderTeams(); renderCompliance(); renderActions();
+    renderTabs(); renderQueue(); renderPaths(); renderKRIs(); renderControls(); renderTrend(); renderTeams(); renderCompliance(); renderActions(); renderDesk(); renderFraud(); renderChat();
     $("#foot").innerHTML = `<div>${esc(P.org)} · ${esc(P.vertical)} profile · frameworks: ${P.frameworks.map(esc).join(" · ")}</div>
       <div>Duplicates removed: ${P.data_quality.duplicates_removed ?? 0} · stale feeds: ${(P.data_quality.stale_connectors||[]).join(", ")||"none"} · items rolled to this week by Today capacity: ${P.data_quality.today_deferred ?? 0}</div>
       ${D.demo?'<div>All organisations, people, hosts and domains on this page are fictional. CVE identifiers are real public CVEs used for illustration.</div>':''}`;
@@ -361,7 +471,7 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
       <div class="stats"><span>eff ${fmt(c.effectiveness)}</span><span>cov ${fmt(c.coverage,"%")}</span><span>${c.freshness_h<1?"live":fmt(c.freshness_h,"h old")}</span><span>${c.open} open</span></div>
       ${c.issues.length?`<div class="iss">${esc(c.issues[0])}</div>`:""}</div>`).join("");
     const ni = P.not_integrated;
-    $("#not-integrated").innerHTML = ni.length ? "Not integrated: " + ni.map(n=>esc(n.title)+(n.mandatory?" <b style='color:var(--crit)'>(mandatory for this industry)</b>":"")).join(", ") : "All 18 control domains integrated.";
+    $("#not-integrated").innerHTML = ni.length ? "Not integrated: " + ni.map(n=>esc(n.title)+(n.mandatory?" <b style='color:var(--crit)'>(mandatory for this industry)</b>":"")).join(", ") : "All control domains integrated.";
   }
 
   function renderTrend(){
@@ -414,6 +524,111 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
       b.setAttribute("aria-pressed","true"); b.textContent = D.api ? "Approved · sent to ITSM queue" : "Approved (demo, not sent)";
     }));
   }
+
+  // ---------------- decision desk
+  const local = {};   // verdicts recorded in this browser (static demo)
+  let deskAll = false;
+  const URG = {now:"Now", today:"Today", this_week:"This week"};
+  function clock(h){ if(h==null) return ""; if(h<0) return `overdue ${Math.abs(Math.round(h))}h`; return h<1?`due in ${Math.max(1,Math.round(h*60))}m`:`due in ${Math.round(h)}h`; }
+  function renderDesk(){
+    const all = P.decisions||[];
+    const sec = $("#desk-sec"); sec.hidden = !all.length; if(!all.length) return;
+    const pend = all.filter(d=>(local[d.decision_id]||d).status==="pending");
+    const c = u => pend.filter(d=>d.urgency===u).length;
+    $("#desk-counts").innerHTML = [["now","Now",c("now")],["today","Today",c("today")],["",'This week',c("this_week")],["reg","Regulatory",pend.filter(d=>d.regulatory).length]]
+      .map(([k,t,n])=>`<div class="cnt ${k}"><span class="n">${n}</span><span class="t">${t}</span></div>`).join("");
+    const roles = [...new Set(all.flatMap(d=>d.deciders))].sort();
+    const fd = $("#f-decider"), cur = fd.value;
+    fd.innerHTML = `<option value="">All roles</option>` + roles.map(r=>`<option${r===cur?" selected":""}>${esc(r)}</option>`).join("");
+    const role=fd.value, urg=$("#f-urg").value, only=$("#f-pend").checked;
+    const rows = all.filter(d=>(!role||d.deciders.includes(role))&&(!urg||d.urgency===urg)&&(!only||(local[d.decision_id]||d).status==="pending"));
+    const shown = deskAll ? rows : rows.slice(0,6);
+    $("#desk").innerHTML = shown.map(d=>{
+      const v = local[d.decision_id] || (d.status!=="pending"?d:null);
+      return `<article class="dcard u-${d.urgency} ${v?"done":""}">
+        <div class="dtop"><span class="st ${d.urgency==="now"?"breach":d.urgency==="today"?"near":"no_data"}">${URG[d.urgency]}</span>
+          <span class="clock ${d.hours_left>4?"ok":""}">${clock(d.hours_left)}</span><span class="chip">${esc(d.type.replace(/_/g," "))}</span>
+          ${d.regulatory?'<span class="chip ap">regulatory</span>':''}<span class="chip">${esc(d.decision_id)}</span></div>
+        <h3>${esc(d.title)}</h3>
+        <div class="who"><span class="label" style="margin-right:4px">Decides</span>${d.deciders.map(r=>`<span class="chip">${esc(r)}</span>`).join("")}</div>
+        <p class="dwhy">${esc(d.why_now)}</p>
+        <div class="split"><div class="prep"><div class="label">Agents prepared</div><ul>${d.prepared.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+          <div class="wont"><div class="label">Agents will not</div><ul>${d.will_not.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div></div>
+        <div class="ifnone"><b>If nobody decides:</b> ${esc(d.if_no_decision)}</div>
+        ${v ? `<div class="verdict">✓ ${esc(v.choice)} · ${esc(v.status)}${v.decided_by?" by "+esc(v.decided_by):""}${local[d.decision_id]&&!D.api?" (recorded in this demo only)":""}</div>`
+            : `<div class="opts">${d.options.concat(["Escalate"]).map((o,i)=>`<button class="opt ${i===0?"primary":""}" data-d="${esc(d.decision_id)}" data-c="${esc(o)}">${esc(o)}</button>`).join("")}</div>`}
+      </article>`;}).join("") || `<p class="empty" style="grid-column:1/-1">No decisions match these filters.</p>`;
+    const more=$("#desk-more"); more.hidden = rows.length<=6; more.textContent = deskAll ? "Show fewer" : `Show all ${rows.length} decisions`;
+    document.querySelectorAll("#desk .opt").forEach(b=>b.addEventListener("click",()=>decide(b.dataset.d,b.dataset.c,b)));
+  }
+  async function decide(id, choice, btn){
+    const status = /^(reject|close as false|release)/i.test(choice)?"rejected":/^escalate/i.test(choice)?"escalated":/^(monitor|defer|investigate further|schedule)/i.test(choice)?"deferred":"approved";
+    if (D.api){
+      try{ const r = await fetch(`api/decisions/${encodeURIComponent(id)}?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({choice})});
+        const j = await r.json(); if(!r.ok) throw new Error(j.detail||r.status); local[id]={status:j.status,choice:j.choice,decided_by:j.role}; }
+      catch(e){ if(btn){btn.textContent="Not recorded: "+e.message;} return; }
+    } else local[id]={status,choice,decided_by:"you"};
+    renderDesk(); renderChatButtons();
+  }
+  ["#f-decider","#f-urg","#f-pend"].forEach(s=>$(s).addEventListener("change",renderDesk));
+  $("#desk-more").addEventListener("click",()=>{deskAll=!deskAll;renderDesk();});
+
+  // ---------------- fraud
+  function money(v){ if(v==null) return "n/a"; return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${Math.round(v/1e3)}K`:`$${v}`; }
+  function renderFraud(){
+    const F = P.fraud, col=$("#fraud-col");
+    if(!F){ col.innerHTML = `<div class="sec-head"><h2>Fraud &amp; financial crime</h2></div><div class="panel"><p class="empty">Fraud management is not integrated for this organisation. Enable the <code>fraud</code> connector (Feedzai, NICE Actimize, SAS, FICO Falcon, BioCatch) to join fraud and cyber signals.</p></div>`; return; }
+    const k=F.kpis;
+    const tiles=[["Confirmed loss · 30d",money(k.confirmed_loss_30d),false],["Prevented · 30d",money(k.prevented_30d),false],
+      ["Detected before loss",fmt(k.detection_rate_pct,"%"),k.detection_rate_pct<95],["Alert backlog",fmt(k.alert_backlog_hours," h"),k.alert_backlog_hours>24],
+      ["Channels scored real-time",fmt(k.channel_coverage_pct,"%"),k.channel_coverage_pct<100],["ATO attempts · 7d",(k.ato_attempts_7d||0).toLocaleString(),false],
+      ["Mule accounts found",k.mule_accounts_detected??"n/a",false],["False-positive rate",fmt(k.false_positive_pct,"%"),false]];
+    $("#fraud-note").textContent = `${F.product} joined with brand, identity and WAF signals.`;
+    $("#fraud").innerHTML = `<div class="ftiles">${tiles.map(([t,n,b])=>`<div class="ftile ${b?"bad":""}"><div class="n">${n}</div><div class="t">${t}</div></div>`).join("")}</div>
+      <div class="label" style="padding:0 16px 6px">Cyber-enabled fraud paths</div>
+      <ul class="fl">${F.paths.map(p=>`<li><b>${esc(p.title)}</b><div class="isub">${esc(p.entity)} · ${p.domains.join(" + ")} · score ${Math.round(p.score)}</div></li>`).join("")||'<li>None open.</li>'}</ul>
+      <div class="label" style="padding:12px 16px 6px">Fraud-control gaps and alerts</div>
+      <ul class="fl">${(()=>{ const g=new Map(); F.items.forEach(f=>{ const x=g.get(f.title); if(x) x.n++; else g.set(f.title,{f,n:1}); });
+        return [...g.values()].slice(0,6).map(({f,n})=>`<li><span class="score ${sevCls(f.score)}" style="display:inline-block;min-width:38px;font-size:15px;padding:2px 4px;margin-right:6px">${Math.round(f.score)}</span>${esc(f.title)}${n>1?` <span class="chip">×${n}</span>`:""}</li>`).join(""); })()}</ul>
+      ${F.decisions.length?`<p class="isub" style="padding:10px 16px">${F.decisions.length} fraud / financial-crime decisions are in the Decision desk.</p>`:""}`;
+  }
+
+  // ---------------- chat
+  function md(t){ return esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\n/g,"<br>"); }
+  function botMsg(r){
+    const el=document.createElement("div"); el.className="msg bot";
+    el.innerHTML = `<div class="h">${esc(r.title)}</div>${r.lines.filter(l=>l!=="").map(md).join("<br>")}` +
+      (r.buttons&&r.buttons.length?`<div class="opts">${r.buttons.map(b=>`<button class="opt primary" data-d="${esc(b.decision_id)}" data-c="${esc(b.choice)}">${esc(b.label)}</button>`).join("")}</div>`:"");
+    el.querySelectorAll(".opt").forEach(b=>b.addEventListener("click",()=>{ decide(b.dataset.d,b.dataset.c); addMe(`approve ${b.dataset.d}: ${b.dataset.c}`);
+      botMsg({title:"Decision recorded", lines:[D.api?"Recorded and audit-logged. The owning team executes; LODESTAR changes nothing itself.":"Recorded in this demo only. In production this is audit-logged and releases the linked ticket."], buttons:[]}); }));
+    const log=$("#chatlog"); log.appendChild(el); log.scrollTop = el.offsetTop - 8;
+  }
+  function addMe(t){ const el=document.createElement("div"); el.className="msg me"; el.textContent=t; $("#chatlog").appendChild(el); }
+  function renderChatButtons(){ document.querySelectorAll("#chatlog .opt").forEach(b=>{ const v=local[b.dataset.d]; if(v){ b.disabled=true; b.textContent="✓ "+v.choice; } }); }
+  async function ask(q){
+    addMe(q);
+    if (D.api){ try{ const r=await fetch(`api/chat/ask?org=${encodeURIComponent(sel.value)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:q})}); botMsg(await r.json()); return; }catch(e){} }
+    const hit = (P.chat||[]).find(c=>c.q.toLowerCase()===q.toLowerCase()) || (P.chat||[]).find(c=>q.toLowerCase().includes(c.q.split(" ")[0]));
+    botMsg(hit || {title:"Offline demo", lines:["This exported dashboard answers the suggested questions. Connected to the API, Slack or Teams, the agent answers any question about priorities, decisions, teams, controls and fraud."], buttons:[]});
+  }
+  function renderChat(){
+    $("#chatlog").innerHTML="";
+    const first=(P.chat||[])[0]; if(first){ addMe(first.q); botMsg(first); }
+    $("#sugs").innerHTML=(P.chat||[]).map(c=>`<button class="sug" type="button">${esc(c.q)}</button>`).join("");
+    document.querySelectorAll(".sug").forEach(b=>b.addEventListener("click",()=>ask(b.textContent)));
+  }
+  $("#askform").addEventListener("submit",e=>{ e.preventDefault(); const q=$("#askq").value.trim(); if(q){ ask(q); $("#askq").value=""; } });
+
+  // clock + theme
+  function tick(){ const d=new Date(); const f=o=>d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",hour12:false,...o});
+    $("#clk-l").textContent=f({}); $("#clk-u").textContent=f({timeZone:"UTC"}); }
+  tick(); setInterval(tick, 15000);
+  if (D.demo) $("#tlp").textContent = "TLP:AMBER · fictional demonstration data · not for operational use";
+  const root=document.documentElement;
+  function setTheme(t){ if(t==="light") root.setAttribute("data-theme","light"); else root.removeAttribute("data-theme");
+    $("#theme").textContent = t==="light" ? "Dark" : "Light"; store.set("lodestar.theme", t); }
+  setTheme(store.get("lodestar.theme")==="light" ? "light" : "dark");
+  $("#theme").addEventListener("click",()=>setTheme(root.getAttribute("data-theme")==="light"?"dark":"light"));
 
   if (D.order.length) load(sel.value); else document.querySelector("main").innerHTML = '<p class="empty">No pipeline results yet. Run <code>python -m lodestar run</code> first.</p>';
 })();

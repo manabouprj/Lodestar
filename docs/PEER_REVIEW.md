@@ -59,23 +59,50 @@ lodestar is the star used to steer by, which is the job of the platform.
 
 ## 4. Verification performed
 
-* `pytest`: 30 passed (scoring, verticals, correlation, pipeline phases, determinism, store, API auth/RBAC, webhook HMAC, reports, guardrail, config secrets, file-drop mapping)
+* `pytest`: 39 passed (v1.1) (scoring, verticals, correlation, pipeline phases, determinism, store, API auth/RBAC, webhook HMAC, reports, guardrail, config secrets, file-drop mapping)
 * `ruff check`: clean
 * `python -m lodestar validate`: ready (demo); FAIL items reported correctly in live mode without keys
 * Live mode with no credentials: pipeline completes, six connector failures isolated and reported, firewall CSV via file drop ingested
 * Dashboard rendered at 1400 px (light and dark) and 400 px (phone): no horizontal overflow, no script errors
 * Output distribution across eight industries:
 
-| Organisation (fictional) | Industry | Signals | Today | Attack paths | Posture |
-|---|---|---:|---:|---:|---:|
-| Sandline Bank | Banking | 1,443 | 25 | 14 | 63.7 |
-| Lumenpay | Fintech | 1,768 | 25 | 12 | 61.0 |
-| Aerolume Airways | Aviation | 1,712 | 31 | 13 | 58.9 |
-| Souqara Retail Group | Retail | 1,573 | 25 | 14 | 61.9 |
-| Petrava Energy | Oil & gas | 1,753 | 25 | 14 | 60.1 |
-| Helionyx Power & Water | Power & utilities | 1,624 | 25 | 14 | 60.1 |
-| Corvianet Telecom | Telecom | 1,600 | 23 | 12 | 60.7 |
-| Portaris Terminals | Ports & logistics | 1,560 | 25 | 17 | 60.1 |
+| Organisation (fictional) | Industry | Signals | Today | Attack paths | Decisions for people | Posture |
+|---|---|---:|---:|---:|---:|---:|
+| Sandline Bank | Banking | 1,529 | 25 | 17 | 20 | 59.1 |
+| Lumenpay | Fintech | 1,881 | 25 | 15 | 17 | 60.3 |
+| Aerolume Airways | Aviation | 1,824 | 35 | 16 | 17 | 59.5 |
+| Souqara Retail Group | Retail | 1,663 | 28 | 17 | 19 | 64.2 |
+| Petrava Energy | Oil & gas | 1,753 | 25 | 14 | 15 | 60.1 |
+| Helionyx Power & Water | Power & utilities | 1,624 | 25 | 14 | 15 | 60.1 |
+| Corvianet Telecom | Telecom | 1,684 | 25 | 15 | 16 | 63.5 |
+| Portaris Terminals | Ports & logistics | 1,560 | 25 | 17 | 18 | 60.1 |
 
-Aviation's Today list exceeds 25 because all 31 items belong to attack paths, KEV or active
+Aviation's and retail's Today lists exceed 25 because every extra item belong to attack paths, KEV or active
 exploitation; those are never deferred by the capacity cap.
+
+## 5. Review of v1.1 (decision desk, ChatOps, fraud)
+
+**Trigger:** stakeholder review of the v1.0 dashboard found no single place that says what a
+*person* must decide now. It also found that Slack/Teams were missing and that fraud, a core risk
+for financial institutions, was absent.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| PR-15 | High | Approvals were buried in the action table; nothing said who must decide, by when, or what the agents would not do | New **DecisionAgent** and **Decision desk** widget: role, deadline, options, "agents prepared" vs "agents will not", consequence of no decision; role-gated verdicts with audit; only approval releases ITSM |
+| PR-16 | High | No fraud coverage for banks/fintechs, and cyber and fraud signals were never joined | **FraudSentinelAgent** (19th domain), cyber-enabled fraud rules LDS-011/012/013, fraud KRIs, MLRO suspicious-transaction decisions, fraud panel and report section |
+| PR-17 | High | First decision-clock design used the oldest member signal, so 12 of 19 decisions showed as hundreds of hours overdue on first sight | The clock starts when LODESTAR first raises the decision and persists across runs; signal age is shown separately |
+| PR-18 | Medium | The first LDS-012 draft (employee credentials + payment) would have matched any user who happened to have an identity alert and a fraud alert | Fraud leg restricted to employee payment-approval alerts (`internal` tag) |
+| PR-19 | Medium | MLRO / STR decisions appeared for airlines, retailers and telcos | Raised only where fraud is a mandatory control (banking, fintech profiles) |
+| PR-20 | Medium | Chat channels are a new way in for spoofed requests and unauthorised decisions | Slack signing-secret (5-minute window) and Teams HMAC verification; chat users map to roles; unmapped users are read-only |
+| PR-21 | Low | The offline (exported) dashboard cannot answer free-text chat | Pre-computed answers from the same engine for suggested questions; the panel says so; full chat via API, Slack, Teams or CLI |
+| PR-22 | Low | Light-first theme unsuitable for 24x7 operations rooms | Dark-first operations-centre theme with TLP marking, local/UTC clocks; light theme on request |
+| PR-23 | Low | Lint caught a missing import that would have broken `/api/agents` | Fixed before release; lint runs in CI |
+
+**New open items**
+
+| # | Item | Planned |
+|---|---|---|
+| O-11 | Teams decisions are text commands (outgoing webhooks cannot carry card actions) | Teams bot (Bot Framework) with Adaptive Card actions |
+| O-12 | Chat-to-role mapping is maintained in YAML | Sync from Entra ID / Slack user groups |
+| O-13 | No native fraud-engine adapter yet (webhook / file drop only) | Feedzai and Actimize adapters |
+| O-14 | Decision playbook deadlines are defaults | Agree with the CISO, MLRO and OT operations during Phase 2 |

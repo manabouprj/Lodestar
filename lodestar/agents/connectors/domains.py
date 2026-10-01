@@ -78,6 +78,13 @@ SPECS: dict[Domain, DomainSpec] = {s.domain: s for s in [
                ("Wiz", "Microsoft Defender for Cloud", "Prisma Cloud", "AWS Security Hub", "Orca"),
                ("critical_misconfigs", "public_buckets", "accounts_covered_pct", "secure_score"),
                "Read-only security reader role per cloud account", ("ms_graph_security",)),
+    DomainSpec(Domain.FRAUD, "FraudSentinelAgent", "Fraud Management & Transaction Monitoring", 2,
+               "Account takeover, mule networks, authorised-push-payment scams, card fraud and fraud-control health "
+               "(channel coverage, disabled rules, model drift, alert backlog) - joined with cyber signals.",
+               ("Feedzai", "NICE Actimize", "SAS Fraud Management", "FICO Falcon", "BioCatch", "LexisNexis ThreatMetrix", "Featurespace"),
+               ("channel_coverage_pct", "alert_backlog_hours", "confirmed_loss_30d", "prevented_30d", "detection_rate_pct",
+                "false_positive_pct", "ato_attempts_7d", "mule_accounts_detected"),
+               "Read-only case/alert reporting API or analytics export (no case-management write access)", ()),
     DomainSpec(Domain.SAST, "CodeGuardAgent", "Static Application Security Testing", 3,
                "Code flaws, secrets in repos and vulnerable dependencies per application.",
                ("Checkmarx", "Veracode", "Snyk", "SonarQube", "GitHub Advanced Security"),
