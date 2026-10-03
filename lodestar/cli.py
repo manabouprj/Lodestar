@@ -592,6 +592,8 @@ def main(argv=None) -> int:
     configure_logging()
     p = argparse.ArgumentParser(prog="lodestar", description="LODESTAR security posture agents")
     p.add_argument("--config", help="path to lodestar.yaml (default config/lodestar.yaml or $LODESTAR_CONFIG)")
+    from . import __version__
+    p.add_argument("--version", action="version", version=f"lodestar {__version__} (Apache-2.0)")
     sub = p.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("demo-data"); d.add_argument("--vertical", default="all"); d.add_argument("--as-of")
     d.set_defaults(fn=cmd_demo_data)

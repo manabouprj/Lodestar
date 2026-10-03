@@ -3,6 +3,20 @@
 All notable changes to LODESTAR. Versions follow [semantic versioning](https://semver.org/); each release is a
 tag on `main`.
 
+## 2.3.0 - 2026-10-04
+
+### Added
+
+* **Licence: Apache License 2.0** (`LICENSE`, `NOTICE`). Until now the repository had no licence, which
+  legally meant "all rights reserved": nobody else could use it, in production or otherwise. Apache-2.0
+  permits use, modification and commercial or production deployment, with attribution and an explicit
+  patent grant. The licence metadata is in `pyproject.toml` (SPDX `Apache-2.0`, licence files in the
+  wheel) and on the container image (`org.opencontainers.image.licenses`). `LICENSE` and `NOTICE` are
+  copied into the image, and the README has a License section.
+* `.github/SECURITY.md`: private vulnerability reporting, response times, supported versions.
+* `CONTRIBUTING.md`: contributions under Apache-2.0 with DCO sign-off, and the project's ground rules.
+* `lodestar --version`.
+
 ## 2.2.3 - 2026-10-03
 
 ### Fixed

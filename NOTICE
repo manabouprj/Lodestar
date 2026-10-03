@@ -1,0 +1,12 @@
+LODESTAR - multi-agent security posture intelligence and prioritisation
+Copyright 2026 Peter Akinyele
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+LODESTAR depends on third-party open-source packages (listed in requirements.txt) that are
+installed separately and keep their own licences (MIT, BSD, Apache-2.0, MPL-2.0, PSF). The
+container image includes them with their licence files in site-packages/*.dist-info.
+
+All organisations, people, hosts and *.example domains in the demo data are fictional.
+Product and company names are trademarks of their respective owners and are used only to
+describe interoperability; no endorsement is implied.
