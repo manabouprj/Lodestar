@@ -30,6 +30,8 @@ class AgentContext:
     audit: list[dict[str, Any]] = field(default_factory=list)
     dry_run: bool = False                    # True = do not write cursors / connector state (tests, previews)
     force: bool = False                      # True = ignore connector intervals
+    scheduled: bool = False                  # True = run by `lodestar schedule`: domain default cadences apply
+    ignore_cursor: bool = False              # True = fetch the full lookback window (sanity checks)
 
     def record(self, agent: str, event: str, **details: Any) -> None:
         entry = {"ts": datetime.utcnow().isoformat() + "Z", "agent": agent, "event": event, **details}

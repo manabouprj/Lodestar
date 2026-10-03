@@ -45,6 +45,18 @@ def _resolve_env(value: Any, path: str = "") -> Any:
     return value
 
 
+def _minutes(v: Any, where: str) -> int | None:
+    if v is None or v == "":
+        return None
+    try:
+        n = int(v)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"connectors.{where}.interval_minutes must be a whole number of minutes") from exc
+    if n < 0:
+        raise ConfigError(f"connectors.{where}.interval_minutes must be >= 0")
+    return n
+
+
 @dataclass
 class ConnectorConfig:
     domain: Domain
@@ -54,7 +66,10 @@ class ConnectorConfig:
     settings: dict[str, Any] = field(default_factory=dict)
     # several sources for one domain (e.g. threat_intel: TAXII + MISP + CSAF + mailbox)
     sources: list[dict[str, Any]] = field(default_factory=list)
-    interval_minutes: int = 0          # minimum minutes between fetches (0 = every pipeline run)
+    # minimum minutes between fetches; None = the domain's default cadence under the scheduler
+    # (DEFAULT_CADENCE_MINUTES), 0 = every pipeline run
+    interval_minutes: int | None = None
+    expect: dict[str, Any] = field(default_factory=dict)   # ingestion sanity expectations (docs/INGESTION_OPERATIONS.md)
 
 
 @dataclass
@@ -212,9 +227,11 @@ def settings_from_raw(raw: dict[str, Any]) -> Settings:
             domain=d, enabled=bool(c.get("enabled", True)), adapter=c.get("adapter", "mock"),
             product=c.get("product", ""), settings=c.get("settings") or {},
             sources=[{"adapter": x.get("adapter", "mock"), "product": x.get("product", ""), "settings": x.get("settings") or {},
-                      "interval_minutes": int(x.get("interval_minutes", c.get("interval_minutes", 0)))}
+                      "interval_minutes": _minutes(x.get("interval_minutes", c.get("interval_minutes")), f"{key}.sources"),
+                      "expect": {**(c.get("expect") or {}), **(x.get("expect") or {})}}
                      for x in (c.get("sources") or [])],
-            interval_minutes=int(c.get("interval_minutes", 0)),
+            interval_minutes=_minutes(c.get("interval_minutes"), key),
+            expect=dict(c.get("expect") or {}),
         )
 
     sc = raw.get("scoring") or {}

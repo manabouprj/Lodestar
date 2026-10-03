@@ -207,7 +207,7 @@ CyberArk, Wiz, Checkmarx, Invicti, Recorded Future, Purview DLP, Claroty, Rubrik
 
 ## Integrations
 
-LODESTAR reads from the tools you already run, read-only. It connects in one of five ways, and most
+LODESTAR reads from the tools you already run, read-only. It connects in one of six ways, and most
 teams start with the first:
 
 1. **SIEM-first.** One read-only query per control domain against your SIEM, for every tool that already
@@ -216,6 +216,8 @@ teams start with the first:
 3. **REST / JSON.** The `http_json` adapter reads any product or SIEM with a JSON read API. No code needed.
 4. **File drop.** CSV or JSON exports with a field map.
 5. **Signed webhook.** Pushed from the product, a SOAR or MERIDIAN, per organisation.
+6. **Vendor MCP server.** The `mcp` adapter calls one read-only tool on a product's Model Context Protocol
+   server and maps the result like `http_json`. Tools that are not read-only are refused.
 
 ### Supported SIEM platforms
 
@@ -265,6 +267,26 @@ integration, phases 0-1 on your own data take one to two days ([QUICKSTART.md](d
 Each phase has a go-live gate: `python -m lodestar doctor` with no failures at that `deployment_phase`.
 See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 
+## Ingestion operations
+
+Every source has a fetch cadence. Alerts and detections (SOC, EDR, fraud) are pulled every 15 minutes,
+identity and e-mail every 30, network and intel hourly, cloud and PAM every 4 hours, scans every 6, code
+analysis daily. Set `interval_minutes` on any source to change it. `lodestar check-ingestion` is the
+sanity test: it fetches every source now and grades it PASS, WARN or FAIL (reachability, volume, schema
+drift, field mapping, CMDB match, freshness), and stores nothing. Inside every run the
+IngestionMonitorAgent validates each source. It raises a finding and a Slack, Teams or webhook alert
+when a source is failing (two failed fetches in a row), stale, silent or drops in volume, and resolves it
+when the source recovers. A single failed fetch never makes a control look dead, and never closes its
+findings. See **[docs/INGESTION_OPERATIONS.md](docs/INGESTION_OPERATIONS.md)**.
+
+## MCP server for AI assistants
+
+LODESTAR is one governed MCP endpoint (`/mcp/`, or `lodestar mcp` over stdio) for Claude, Copilot,
+Foundry or Bedrock agents and IDEs. Assistants get prioritised, de-duplicated and correlated answers
+("what do we fix today?", "is the EDR feed healthy?") through twelve read-only tools. They use the same
+API keys or SSO tokens, roles and organisation scoping as the dashboard. No assistant needs its own
+credentials to twenty consoles. See **[docs/MCP.md](docs/MCP.md)**.
+
 ## Commands
 
 | Command | Purpose |
@@ -276,7 +298,9 @@ See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 | `python -m lodestar kpis` | Where every KRI comes from, and how to measure the missing ones |
 | `python -m lodestar backup [--out file]` | Online backup of the store |
 | `python -m lodestar serve` | API, dashboard, Slack/Teams endpoints |
-| `python -m lodestar schedule` | Runs every N hours, posts the brief and alerts, writes reports on calendar boundaries |
+| `python -m lodestar schedule [--tick-minutes 15]` | Wakes every tick, fetches each source on its own cadence, validates ingestion and alerts, posts the brief, writes reports on calendar boundaries |
+| `python -m lodestar check-ingestion [--domain d] [--json] [--full]` | Ingestion sanity test: every source fetched now, PASS / WARN / FAIL, exit 1 on FAIL (nothing stored) |
+| `python -m lodestar mcp [--role analyst] [--org key]` | MCP server over stdio for a local AI client (network clients use `/mcp/` on the API) |
 | `python -m lodestar chat [question]` | Ask the prioritisation agent from the terminal |
 | `python -m lodestar notify --channel slack\|teams\|stdout` | Push the focus brief now |
 | `python -m lodestar report --period weekly\|monthly\|quarterly\|all` | Write reports (HTML, Markdown, JSON) |
@@ -291,11 +315,13 @@ See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 lodestar/
   agents/connectors/   21 connector agents + adapters (Sentinel, Splunk, QRadar, Elastic/OpenSearch, Sumo Logic,
                        Google SecOps, Graph Security, Entra, Tenable, HackerOne, TAXII/STIX, MISP, CSAF, mailbox,
-                       http_json, file_drop, webhook, mock)
-  agents/core/         asset context, threat hunt, data quality, lifecycle, threat intel, control assurance,
+                       http_json, mcp, file_drop, webhook, mock)
+  agents/core/         asset context, threat hunt, data quality, ingestion monitor, lifecycle, threat intel, control assurance,
                        correlation, prioritisation, compliance, action, decision desk, narrative
   entities.py          asset and identity resolution (FQDN, IP, MAC, device ids, UPN / sam / object id)
   onboarding.py        `init` and `doctor`
+  ingestion.py         ingestion expectations and checks (sanity test + continuous monitor)
+  mcp_server.py        MCP server: read-only, org-scoped tools for AI assistants (/mcp/ and stdio)
   ops.py               Prometheus metrics, JSON logging
   api/auth.py          OIDC SSO, bearer JWT, org-scoped API keys, signed sessions, CSRF
   chatops/             chat engine, Slack, Microsoft Teams, notifier
@@ -307,7 +333,7 @@ lodestar/
 config/                platform config, industry profiles, framework mappings, templates/catalog.yaml, tenants/
 docs/                  architecture, scoring, phases, human-in-the-loop, ChatOps, fraud, security, peer review, demo script
 samples/               dashboard and reports generated from the demo data
-tests/                 90+ tests, incl. contract tests against recorded vendor responses
+tests/                 130+ tests, incl. contract tests against recorded vendor responses
 ```
 
 ## Security
@@ -334,6 +360,8 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 | [GITHUB_SETUP.md](docs/GITHUB_SETUP.md) | Pushing to GitHub from Windows, publishing the demo dashboard on GitHub Pages |
 | [SCORING_MODEL.md](docs/SCORING_MODEL.md) | How priorities are calculated |
 | [DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md) | Rollout plan and exit criteria |
+| [INGESTION_OPERATIONS.md](docs/INGESTION_OPERATIONS.md) | Ingestion cadence per domain, the sanity test, continuous validation, alerts and metrics |
+| [MCP.md](docs/MCP.md) | The LODESTAR MCP server for AI assistants and agents, and the vendor MCP adapter |
 | [SIEM_INTEGRATION.md](docs/SIEM_INTEGRATION.md) | **Supported SIEM platforms**: Sentinel, Splunk, QRadar, Elastic / OpenSearch / Wazuh, Sumo Logic, Google SecOps, MERIDIAN and any other SIEM; permissions, setup, hunting, limits |
 | [CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md) | Connecting products |
 | [AGENT_CATALOG.md](docs/AGENT_CATALOG.md) | Every agent, rule and industry profile |
@@ -342,8 +370,10 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 2.1.0 is production-ready for a single node serving one or many organisations. It includes:
+Version 2.2.0 is production-ready for a single node serving one or many organisations. It includes:
 
+* per-source ingestion cadence, an ingestion sanity test, and continuous ingestion validation with alerts;
+* a read-only MCP server for AI assistants, and an adapter for vendor MCP servers;
 * finding lifecycle with history;
 * asset and identity resolution;
 * SIEM-first connectors for six SIEM platforms, plus a generic REST adapter, and IOC hunting in four of them;

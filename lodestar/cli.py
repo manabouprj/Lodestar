@@ -7,7 +7,7 @@
   python -m lodestar report --period weekly|monthly|quarterly|all [--org slug]
   python -m lodestar export-dashboard --out dist/dashboard.html
   python -m lodestar serve [--host 0.0.0.0 --port 8080]
-  python -m lodestar schedule [--interval-hours 4]   # long-running: pipeline + calendar-based reports
+  python -m lodestar schedule [--tick-minutes 15]    # long-running: per-source cadence, ingestion alerts, reports
   python -m lodestar chat ["what needs attention now"]   # talk to the prioritisation agent (same engine as Slack/Teams)
   python -m lodestar notify [--channel slack|teams|stdout]  # push the focus brief
   python -m lodestar init                 # generate a live config: org, industry, SIEM-first connectors, .env secrets
@@ -87,6 +87,12 @@ def cmd_run(args) -> int:
             rc = rc or 1
             for k, v in bad.items():
                 print(f"  source FAILED {k}: {v.get('error', '')[:200]}  (its findings were carried forward, not closed)")
+        skipped = [k for k, v in srcs.items() if v.get("status") == "skipped"]
+        if skipped:
+            print(f"  {len(skipped)} source(s) not due yet (interval_minutes): {', '.join(skipped[:8])} - use --force to fetch now")
+        for k, v in sorted(((res.data_quality.get("ingestion") or {}).get("sources") or {}).items()):
+            if v.get("state") in ("failing", "stale", "volume_drop", "volume_spike", "degraded"):
+                print(f"  ingestion {v['state'].upper()} {k}: {v.get('detail', '')[:160]}")
     return rc
 
 
@@ -158,9 +164,11 @@ def cmd_serve(args) -> int:
 
 
 def cmd_schedule(args) -> int:
-    """Long-running scheduler for every organisation: pipeline every N hours; reports on calendar boundaries
-    (weekly = Monday, monthly = 1st, quarterly = 1st of Jan/Apr/Jul/Oct, local time); chat brief, new-urgent
-    alerts and escalations; nightly prune + backup (ops.backup_dir)."""
+    """Long-running scheduler for every organisation. Every tick (default 15 min) the pipeline runs and each
+    ingestion source is fetched only when its own cadence is due (interval_minutes, or the domain default -
+    docs/INGESTION_OPERATIONS.md); the IngestionMonitorAgent validates every source and failing / stale
+    sources are alerted. Reports on calendar boundaries (weekly = Monday, monthly = 1st, quarterly = 1st of
+    Jan/Apr/Jul/Oct, local time); chat brief, new-urgent alerts and escalations; nightly prune + backup."""
     import time
 
     from .orchestrator import Orchestrator
@@ -172,14 +180,26 @@ def cmd_schedule(args) -> int:
     last_report_day: dict[str, object] = {}
     last_brief_day: dict[str, object] = {}
     last_maint = None
+    tick = args.interval_hours * 60 if args.interval_hours else args.tick_minutes
+    tick = max(5.0, float(tick))
+    print(f"LODESTAR scheduler: tick every {tick:g} min, {len(tenants)} organisation(s); sources follow their own cadence",
+          flush=True)
     while True:
+        loop_started = time.monotonic()
         for s in tenants:
             try:
                 started = datetime.now(timezone.utc)
-                res = Orchestrator(s, store=store).run(lock_wait=0)
+                res = Orchestrator(s, store=store).run(lock_wait=0, scheduled=True)
                 cfg = s.chatops or {}
+                icfg = s.raw.get("ingestion") or {}
+                from .chatops import notifier
+                if notifier.channels(cfg) or (icfg.get("alerts") or {}).get("webhook_url"):
+                    for r in notifier.ingestion_alerts(res, store, icfg, cfg, datetime.now(timezone.utc)):
+                        print("  ingestion alert:", r, flush=True)
+                ing = res.data_quality.get("ingestion") or {}
+                for t in ing.get("transitions") or []:
+                    print(f"  ingestion {t['source']}: {t['from']} -> {t['to']} {t['detail']}", flush=True)
                 if cfg:
-                    from .chatops import notifier
                     if notifier.channels(cfg):
                         if cfg.get("alert_on_new_now_decisions", True):
                             raised = {k: v["first_raised"] for k, v in store.decision_state(res.org_name).items()}
@@ -192,8 +212,10 @@ def cmd_schedule(args) -> int:
                             for r in notifier.daily_brief(res, cfg):
                                 print("  daily brief:", r, flush=True)
                             last_brief_day[s.org_key] = datetime.now().date()
+                fetched = sum(1 for v in (res.data_quality.get("sources") or {}).values() if v.get("status") != "skipped")
                 print(f"[{datetime.now().isoformat(timespec='seconds')}] {s.org_key}: run ok, posture "
-                      f"{res.snapshot.posture_score} today {res.snapshot.open_by_horizon['today']}", flush=True)
+                      f"{res.snapshot.posture_score} today {res.snapshot.open_by_horizon['today']}, sources fetched "
+                      f"{fetched}/{len(res.data_quality.get('sources') or {})}, ingestion {ing.get('states', {})}", flush=True)
                 today = datetime.now().date()
                 if today != last_report_day.get(s.org_key):
                     periods = []
@@ -227,7 +249,7 @@ def cmd_schedule(args) -> int:
             last_maint = datetime.now().date()
         if args.once:
             return 0
-        time.sleep(max(0.25, args.interval_hours) * 3600)
+        time.sleep(max(1.0, tick * 60 - (time.monotonic() - loop_started)))   # tick-aligned, not tick + run time
 
 
 def _rotate_backups(folder: Path, keep: int) -> None:
@@ -303,6 +325,7 @@ def cmd_notify(args) -> int:
 def cmd_validate(args) -> int:
     from .agents.connectors.adapters import REGISTRY
     from .agents.connectors.domains import SPECS
+    from .ingestion import DEFAULT_EXPECT
     from .verticals import list_verticals, load_vertical
     ok = True
     try:
@@ -322,11 +345,14 @@ def cmd_validate(args) -> int:
             print(f"[{status:>4}] phase {sp.phase} {sp.agent_name:24s} {cc.adapter}")
             continue
         problems = []
-        srcs = cc.sources or [{"adapter": cc.adapter, "product": cc.product, "settings": cc.settings}]
+        srcs = cc.sources or [{"adapter": cc.adapter, "product": cc.product, "settings": cc.settings, "expect": cc.expect}]
         for src in srcs:
             tag = f"{src['product'] or src['adapter']}: " if len(srcs) > 1 else ""
             if src["adapter"] not in REGISTRY:
                 problems.append(f"{tag}unknown adapter '{src['adapter']}'")
+            bad_expect = sorted(set(src.get("expect") or {}) - set(DEFAULT_EXPECT))
+            if bad_expect:
+                problems.append(f"{tag}unknown expect key(s) {bad_expect} - see docs/INGESTION_OPERATIONS.md")
             if s.mode == "live":
                 st = src["settings"]
                 missing = [k for k, v in st.items() if v in ("", None) and k != "coverage_pct"]
@@ -411,6 +437,57 @@ def cmd_test_connector(args) -> int:
         print("RESULT    : CONNECTED, NO FINDINGS YET - check the drop folder / webhook sender / lookback window")
         return 0
     print("RESULT    : OK")
+    return 0
+
+
+def cmd_check_ingestion(args) -> int:
+    """Ingestion sanity test: fetch every enabled source now, grade it PASS / WARN / FAIL. Nothing is stored.
+    Exit code 1 when any source FAILs (use it in CI / after credential rotation / after a vendor upgrade)."""
+    import json as _json
+
+    from .ingestion import sanity_check
+    from .models import Domain
+    if args.domain and args.domain not in {d.value for d in Domain}:
+        print(f"Unknown domain '{args.domain}'. Choose from: {', '.join(d.value for d in Domain)}", file=sys.stderr)
+        return 2
+    s = _settings(args)
+    rep = sanity_check(s, args.domain, full=args.full)
+    if args.json:
+        print(_json.dumps(rep, indent=2, default=str))
+        return 1 if rep["result"] == "fail" else 0
+    if not rep["sources"]:
+        print("No enabled connector" + (f" for '{args.domain}'" if args.domain else "") + " - add one under connectors:.")
+        return 2
+    print(f"Ingestion sanity test - {rep['org']} [mode={rep['mode']}]{' (full lookback window)' if args.full else ''}")
+    for key, r in sorted(rep["sources"].items()):
+        later = "" if r["phase_enabled"] else "  (later phase - not in scheduled runs yet)"
+        print(f"\n[{r['verdict'].upper():4s}] {key:28s} {r['product'] or ''}  {r['items']} item(s), {r['mode']}, "
+              f"every {r['cadence_minutes']} min{later}")
+        for c in r["checks"]:
+            mark = {"pass": " ok ", "warn": "WARN", "fail": "FAIL"}[c["status"]]
+            print(f"   {mark}  {c['name']:10s} {c['detail']}")
+        if r["monitor_state"]:
+            print(f"   info  monitor    continuous state: {r['monitor_state']} (last success {r['last_success'] or 'never'})")
+        for smp in r["samples"][: args.show]:
+            print(f"         sample     [{smp['severity']}] {smp['title'][:80]}  asset={smp['asset'] or '-'}")
+    sm = rep["summary"]
+    print(f"\nRESULT: {rep['result'].upper()} - {sm['pass']} pass, {sm['warn']} warn, {sm['fail']} fail")
+    return 1 if rep["result"] == "fail" else 0
+
+
+def cmd_mcp(args) -> int:
+    """Serve the LODESTAR MCP server over stdio for a desktop AI client on this host (Claude Desktop, an IDE).
+    Over the network use the API's /mcp/ endpoint instead (API key or OIDC bearer)."""
+    from .api.auth import Principal
+    from .config import load_tenants
+    from .mcp_server import Hub, run_stdio
+    from .store import Store
+    base = _settings(args)
+    tenants = {t.org_key: t for t in load_tenants(getattr(args, "config", None))} or {base.org_key: base}
+    p = Principal(actor=f"mcp-stdio:{os.environ.get('USERNAME') or os.environ.get('USER') or 'local'}", role=args.role,
+                  orgs={args.org} if args.org else {"*"}, via="stdio")
+    store = Store(base.sqlite_path)
+    run_stdio(Hub(lambda: store, lambda key: tenants.get(key, base), default_principal=p))
     return 0
 
 
@@ -533,7 +610,10 @@ def main(argv=None) -> int:
     ch.add_argument("--role", default="ciso", choices=["exec", "analyst", "ciso"]); ch.set_defaults(fn=cmd_chat, phase=None, dataset=None)
     nt = sub.add_parser("notify"); nt.add_argument("--channel", default="all", choices=["all", "slack", "teams", "stdout"])
     nt.add_argument("--org"); nt.set_defaults(fn=cmd_notify, phase=None, dataset=None)
-    sc = sub.add_parser("schedule"); sc.add_argument("--interval-hours", type=float, default=4.0)
+    sc = sub.add_parser("schedule", help="long-running: per-source cadence, continuous ingestion validation, reports")
+    sc.add_argument("--tick-minutes", type=float, default=15.0,
+                    help="how often to wake up; each source is still fetched only on its own cadence (default 15)")
+    sc.add_argument("--interval-hours", type=float, help=argparse.SUPPRESS)   # v2.1 compatibility: tick in hours
     sc.add_argument("--once", action="store_true"); sc.add_argument("--org")
     sc.set_defaults(fn=cmd_schedule, phase=None, dataset=None)
     bk = sub.add_parser("backup", help="online backup of the SQLite store"); bk.add_argument("--out")
@@ -554,5 +634,13 @@ def main(argv=None) -> int:
     tc = sub.add_parser("test-connector", help="run one connector agent and show what it collects (nothing stored)")
     tc.add_argument("domain"); tc.add_argument("--show", type=int, default=5); tc.add_argument("--dataset")
     tc.set_defaults(fn=cmd_test_connector, phase=None)
+    ci = sub.add_parser("check-ingestion", help="sanity test: fetch every source now, PASS/WARN/FAIL (nothing stored)")
+    ci.add_argument("--domain"); ci.add_argument("--json", action="store_true")
+    ci.add_argument("--full", action="store_true", help="ignore sync cursors and read the whole lookback window")
+    ci.add_argument("--show", type=int, default=2, help="sample items per source"); ci.add_argument("--dataset")
+    ci.set_defaults(fn=cmd_check_ingestion, phase=None)
+    mc = sub.add_parser("mcp", help="MCP server over stdio for a local AI client (network clients use /mcp/ on the API)")
+    mc.add_argument("--role", default="analyst", choices=["exec", "analyst", "ciso"]); mc.add_argument("--org")
+    mc.set_defaults(fn=cmd_mcp, phase=None, dataset=None)
     args = p.parse_args(argv)
     return args.fn(args)

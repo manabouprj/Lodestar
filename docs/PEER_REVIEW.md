@@ -162,6 +162,9 @@ See [QUICKSTART.md](QUICKSTART.md) and [PRODUCTION.md](PRODUCTION.md).
 | O-23 | Webhook timestamps are optional by default | Senders that only sign the body can be replayed within retention (upsert is idempotent) | Turn on `webhook_require_timestamp` once all senders are updated |
 | O-24 | No threat-intel hunting in Sumo Logic or Google SecOps | Indicators are not searched in those SIEMs | Add hunt providers once field conventions are agreed per tenant |
 | O-25 | Google SecOps adapter is a preview | Regional endpoint and API version vary by tenant | Validate on a live tenant with `test-connector`, then mark native |
+| O-26 | Volume baselines cover snapshot sources only | A drop in an incremental alert stream is caught only by `max_silence_hours` | Hour-of-week baselines for incremental sources |
+| O-27 | MCP `tools/list` shows every tool to every role | Out-of-role calls are refused, but clients see tools they cannot use | Filter the tool list by the caller's role |
+| O-28 | No OAuth protected-resource metadata on `/mcp/` | MCP clients cannot discover the identity provider; keys or pre-issued tokens are needed | Publish RFC 9728 metadata from `security.oidc` |
 
 **Independent second-pass review of v2.0 (findings fixed before release, each with a regression test)**
 
@@ -192,3 +195,23 @@ SIEM integration, the integration teams ask about first.
 
 Open items added: hunting in Sumo Logic and Google SecOps (O-24); Google SecOps out of preview after
 validation on a live tenant (O-25).
+
+## 9. Review of v2.2: ingestion operations and MCP
+
+A review of how often data is pulled, how a team knows a pull is correct, and what happens when a pull
+fails, plus integration with AI assistants.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| PR-47 | High | One failed fetch replaced the domain's health with coverage 0 / data age 999 h, so ControlAssurance raised a HIGH "control stale" finding on any transient timeout. Repeated failures produced no distinct signal apart from `/metrics` | Failed and skipped sources contribute their last good health, aged. The new IngestionMonitorAgent raises a self-resolving `ing-*` finding and an alert only after `failing_after` (2) consecutive failures |
+| PR-48 | High | `interval_minutes` throttling made a skipped domain disappear from the controls, so a mandatory domain counted as "not integrated" and the trust score dropped between pulls | Skipped sources carry their last good health. The domain stays integrated |
+| PR-49 | High | Control-health findings (`ctl-*`) raised after the lifecycle agent were resolved by the same save that re-raised them, so they flipped between open and resolved on every other run, which skewed MTTR | `save_result` no longer resolves LODESTAR-generated findings that are raised in the same run. Regression test added |
+| PR-50 | Medium | No ingestion cadence model: the scheduler pulled everything every 4 h, too slow for alerts and too often for scanners | Per-domain default cadence (15 min to 24 h), a 15-minute clock-aligned scheduler tick, and `interval_minutes` overrides |
+| PR-51 | Medium | No way to grade a source's data beyond "it returned something": schema drift, broken field maps, CMDB match and silent sources were invisible | `lodestar check-ingestion` sanity test and the same checks in every run; `expect:` thresholds; schema-drift warning in `map_rows`; volume baseline and silence detection |
+| PR-52 | Medium | AI assistants had no governed way in. Wiring each assistant to every console multiplies credentials and exposes write-capable APIs to a model | Read-only MCP server (`/mcp/` and stdio): API principals, roles, org scope, TLP:RED redaction, audit. `mcp` adapter for vendor MCP servers, which refuses tools not annotated read-only |
+
+Open items added:
+
+* volume baselines for incremental sources, for example items per hour by weekday (O-26);
+* MCP tool filtering by role in `tools/list` (today, out-of-role tools return an error) (O-27);
+* OAuth 2.1 protected-resource metadata on `/mcp/`, so MCP clients can discover the identity provider (O-28).

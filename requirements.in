@@ -7,3 +7,4 @@ jinja2>=3.1
 httpx>=0.27
 python-multipart>=0.0.9
 pyjwt[crypto]>=2.8
+mcp>=2.2,<3            # Model Context Protocol: LODESTAR MCP server (/mcp/, lodestar mcp) and the mcp adapter

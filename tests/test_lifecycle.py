@@ -83,7 +83,7 @@ def test_migration_from_v1_database(tmp_path):
         CREATE TABLE webhook (domain TEXT, finding_id TEXT, received_at TEXT, data TEXT, PRIMARY KEY (domain, finding_id));
         INSERT INTO webhook VALUES ('waf','w1','2099-01-01T00:00:00+00:00','{"finding_id":"w1"}');""")
     st = Store(db)
-    assert st.schema_version() == 2
+    assert st.schema_version() == 3
     assert st.webhook_findings("waf", org="anything")[0]["finding_id"] == "w1"
 
 

@@ -8,6 +8,7 @@ from .google_secops import GoogleSecOpsAdapter
 from .hackerone import HackerOneAdapter
 from .http_json import HttpJsonAdapter
 from .mailbox import MailboxAdapter
+from .mcp_client import McpClientAdapter
 from .misp import MispAdapter
 from .mock import MockAdapter
 from .ms_graph_security import MsGraphSecurityAdapter
@@ -23,7 +24,7 @@ REGISTRY: dict[str, type[Adapter]] = {
                         EntraIdentityProtectionAdapter, TenableVmAdapter,
                         HackerOneAdapter, TaxiiAdapter, MispAdapter, CsafAdapter, MailboxAdapter,
                         SentinelQueryAdapter, SplunkSearchAdapter, QRadarAdapter, ElasticAdapter, SumoLogicAdapter,
-                        GoogleSecOpsAdapter, HttpJsonAdapter)
+                        GoogleSecOpsAdapter, HttpJsonAdapter, McpClientAdapter)
 }
 
 

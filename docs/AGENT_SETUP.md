@@ -344,7 +344,7 @@ next to the posture make this visible.
 **Docker (recommended for servers):**
 
 ```bash
-docker compose up -d        # api (dashboard + API + chat endpoints) and scheduler (runs every 4 h)
+docker compose up -d        # api (dashboard + API + chat + MCP endpoints) and scheduler (15-min tick, per-source cadence)
 ```
 
 **Windows host without Docker:** create two scheduled tasks, one for the API at start-up and one
@@ -353,7 +353,7 @@ for the scheduler:
 ```powershell
 $repo = "C:\Projects\lodestar"; $py = "$repo\.venv\Scripts\python.exe"
 $api  = New-ScheduledTaskAction -Execute $py -Argument "-m lodestar serve --host 127.0.0.1 --port 8080" -WorkingDirectory $repo
-$sch  = New-ScheduledTaskAction -Execute $py -Argument "-m lodestar schedule --interval-hours 4" -WorkingDirectory $repo
+$sch  = New-ScheduledTaskAction -Execute $py -Argument "-m lodestar schedule --tick-minutes 15" -WorkingDirectory $repo
 $boot = New-ScheduledTaskTrigger -AtStartup
 $set  = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5) -ExecutionTimeLimit ([TimeSpan]::Zero)
 Register-ScheduledTask -TaskName "LODESTAR API"       -Action $api -Trigger $boot -Settings $set -User "NT AUTHORITY\NETWORK SERVICE"

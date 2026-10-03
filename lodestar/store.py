@@ -65,6 +65,16 @@ MIGRATIONS: list[str] = [
     CREATE TABLE IF NOT EXISTS locks (name TEXT PRIMARY KEY, holder TEXT, expires REAL);
     CREATE INDEX IF NOT EXISTS ix_audit_ts ON audit (ts);
     """,
+    # 3 - v2.2: continuous ingestion validation (consecutive failures, last good health, monitor/alert state,
+    #     per-fetch history for volume baselines)
+    """
+    ALTER TABLE connector_state ADD COLUMN failures INTEGER DEFAULT 0;
+    ALTER TABLE connector_state ADD COLUMN health TEXT;
+    ALTER TABLE connector_state ADD COLUMN monitor TEXT;
+    CREATE TABLE IF NOT EXISTS source_runs (org TEXT, source_key TEXT, at TEXT, status TEXT, items INTEGER,
+        warnings INTEGER);
+    CREATE INDEX IF NOT EXISTS ix_source_runs ON source_runs (org, source_key, at);
+    """,
 ]
 
 
@@ -185,7 +195,12 @@ class Store:
                     (org, f.finding_id, f.domain.value, f.status.value, f.score, f.horizon.value if f.horizon else None,
                      _iso(f.first_seen), resolved_at, f.model_dump_json(), _iso(f.last_seen),
                      int(missed.get(f.finding_id, 0)), "closed at source" if closed else None))
+            # LODESTAR-generated findings (control health, ingestion monitor) raised after the LifecycleAgent ran
+            raised = {f.finding_id for f in result.findings if f.source.startswith("lodestar.")
+                      and f.status.value not in ("resolved", "false_positive")}
             for fid, reason in (lifecycle.get("resolve") or {}).items():
+                if fid in raised:
+                    continue
                 c.execute("UPDATE findings SET status='resolved', resolved_at=COALESCE(resolved_at, ?), resolution=? "
                           "WHERE org=? AND finding_id=?", (now, reason, org, fid))
             c.execute("DELETE FROM runs WHERE org=? AND id NOT IN (SELECT id FROM runs WHERE org=? ORDER BY id DESC LIMIT ?)",
@@ -265,12 +280,13 @@ class Store:
     # ---- connector state ----------------------------------------------------
     def connector_state(self, org: str, source_key: str) -> dict[str, Any]:
         with self._conn() as c:
-            row = c.execute("SELECT cursor, last_success, last_attempt, last_error, items FROM connector_state "
-                            "WHERE org=? AND source_key=?", (org, source_key)).fetchone()
+            row = c.execute("SELECT cursor, last_success, last_attempt, last_error, items, failures, health, monitor "
+                            "FROM connector_state WHERE org=? AND source_key=?", (org, source_key)).fetchone()
         if not row:
             return {}
         return {"cursor": row[0], "last_success": _dt(row[1]), "last_attempt": _dt(row[2]), "last_error": row[3],
-                "items": row[4]}
+                "items": row[4], "failures": int(row[5] or 0), "health": json.loads(row[6]) if row[6] else None,
+                "monitor": json.loads(row[7]) if row[7] else {}}
 
     def all_connector_state(self, org: str) -> dict[str, dict[str, Any]]:
         with self._conn() as c:
@@ -278,17 +294,46 @@ class Store:
         return {r[0]: self.connector_state(org, r[0]) for r in rows}
 
     def set_connector_state(self, org: str, source_key: str, *, ok: bool, cursor: str | None = None,
-                            error: str | None = None, items: int | None = None) -> None:
-        now = _now().isoformat()
+                            error: str | None = None, items: int | None = None, health: str | None = None,
+                            at: datetime | None = None) -> None:
+        """Record a fetch. `at` is the pipeline's clock (run start) so intervals line up with scheduler ticks;
+        `health` is the source's ControlHealth JSON, kept as the last good telemetry for carry-forward."""
+        now = _iso(at) if at else _now().isoformat()
         with self._lock, self._conn() as c:
             c.execute("INSERT OR IGNORE INTO connector_state (org, source_key) VALUES (?,?)", (org, source_key))
             if ok:
-                c.execute("UPDATE connector_state SET last_success=?, last_attempt=?, last_error=NULL, items=?, "
-                          "cursor=COALESCE(?, cursor) WHERE org=? AND source_key=?",
-                          (now, now, items, cursor, org, source_key))
+                c.execute("UPDATE connector_state SET last_success=?, last_attempt=?, last_error=NULL, items=?, failures=0, "
+                          "cursor=COALESCE(?, cursor), health=COALESCE(?, health) WHERE org=? AND source_key=?",
+                          (now, now, items, cursor, health, org, source_key))
             else:
-                c.execute("UPDATE connector_state SET last_attempt=?, last_error=? WHERE org=? AND source_key=?",
-                          (now, (error or "")[:1000], org, source_key))
+                c.execute("UPDATE connector_state SET last_attempt=?, last_error=?, failures=COALESCE(failures, 0) + 1 "
+                          "WHERE org=? AND source_key=?", (now, (error or "")[:1000], org, source_key))
+
+    def set_monitor_state(self, org: str, source_key: str, monitor: dict[str, Any]) -> None:
+        with self._lock, self._conn() as c:
+            c.execute("INSERT OR IGNORE INTO connector_state (org, source_key) VALUES (?,?)", (org, source_key))
+            c.execute("UPDATE connector_state SET monitor=? WHERE org=? AND source_key=?",
+                      (json.dumps(monitor, default=str), org, source_key))
+
+    def record_source_run(self, org: str, source_key: str, status: str, items: int | None = None, warnings: int = 0,
+                          at: datetime | None = None) -> None:
+        with self._lock, self._conn() as c:
+            c.execute("INSERT INTO source_runs (org, source_key, at, status, items, warnings) VALUES (?,?,?,?,?,?)",
+                      (org, source_key, _iso(at) if at else _now().isoformat(), status, items, warnings))
+
+    def last_items_at(self, org: str, source_key: str) -> datetime | None:
+        """When the source last returned at least one item (silence detection)."""
+        with self._conn() as c:
+            row = c.execute("SELECT MAX(at) FROM source_runs WHERE org=? AND source_key=? AND items > 0",
+                            (org, source_key)).fetchone()
+        return _dt(row[0]) if row and row[0] else None
+
+    def source_history(self, org: str, source_key: str, limit: int = 14) -> list[dict[str, Any]]:
+        """Most recent fetches of a source, newest first (status ok / failed / no_data)."""
+        with self._conn() as c:
+            rows = c.execute("SELECT at, status, items, warnings FROM source_runs WHERE org=? AND source_key=? "
+                             "ORDER BY at DESC, rowid DESC LIMIT ?", (org, source_key, limit)).fetchall()
+        return [{"at": _dt(r[0]), "status": r[1], "items": r[2], "warnings": r[3]} for r in rows]
 
     # ---- webhook ingestion --------------------------------------------------
     def upsert_webhook(self, domain: str, items: list[dict[str, Any]], org: str = "") -> int:
@@ -386,7 +431,7 @@ class Store:
 
     # ---- maintenance --------------------------------------------------------
     def prune(self, *, closed_findings_days: int = 400, webhook_days: int = 60, audit_days: int = 400,
-              snapshot_days: int = 800) -> dict[str, int]:
+              snapshot_days: int = 800, source_runs_days: int = 30) -> dict[str, int]:
         now = _now()
         out = {}
         with self._lock, self._conn() as c:
@@ -397,6 +442,8 @@ class Store:
             out["audit"] = c.execute("DELETE FROM audit WHERE ts < ?", ((now - timedelta(days=audit_days)).isoformat(),)).rowcount
             out["snapshots"] = c.execute("DELETE FROM snapshots WHERE date < ?",
                                          ((now - timedelta(days=snapshot_days)).date().isoformat(),)).rowcount
+            out["source_runs"] = c.execute("DELETE FROM source_runs WHERE at < ?",
+                                           ((now - timedelta(days=source_runs_days)).isoformat(),)).rowcount
         return out
 
     def backup(self, dest: Path | str) -> Path:

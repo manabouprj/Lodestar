@@ -184,6 +184,11 @@ Use the lightest of three generic paths:
 * **Health.** An optional health query (`health_query`, `health_search`, `health_aql`, `health_esql`,
   Sumo `health_query`) returns one row. Its `coverage_pct` and numeric columns become the control's
   KPIs, which feed KRIs such as MTTD and silent log sources.
+* **Cadence and validation.** SIEM queries for alerts and detections run every 15 minutes under the
+  scheduler, network telemetry hourly (`interval_minutes` overrides). `lodestar check-ingestion` grades
+  each query: reachability, volume, schema drift, mapping, CMDB match. The IngestionMonitorAgent alerts when
+  a query keeps failing, or when it succeeds but returns nothing for `expect.max_silence_hours` (a log
+  source stopped forwarding). See [INGESTION_OPERATIONS.md](INGESTION_OPERATIONS.md).
 
 ## Threat hunting in the SIEM
 
@@ -226,5 +231,7 @@ threat_hunt:
 | Every item shows medium severity | Field map does not point at the severity column, or the values are unknown words | Fix `field_map.severity`, add a `severity_map` |
 | Items never close | Incremental query that does not return closed items | Return status too, or switch to a snapshot query of open items |
 | TLS errors | Private CA | Set `ca_bundle` to the CA file; verification cannot be disabled |
+| `schema drift: mapped column(s) missing` | A field was renamed (connector or app update, new data model) | Compare `test-connector --show 3` with `field_map`, then update the map |
+| Source `stale` although the query succeeds | The query returns nothing for longer than `max_silence_hours` | Check that the product still forwards to the SIEM (data connector, forwarder, parser) |
 
 Contract tests: `pytest tests/test_siem_platforms.py tests/test_contracts.py`.

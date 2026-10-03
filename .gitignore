@@ -10,7 +10,8 @@ build/
 data/*.db
 data/*.db-*
 data/intel/
-data/drop/**/*
+data/drop/**
+!data/drop/**/
 !data/drop/**/.gitkeep
 dist/
 reports/

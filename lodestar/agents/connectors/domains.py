@@ -139,6 +139,27 @@ SPECS: dict[Domain, DomainSpec] = {s.domain: s for s in [
 ]}
 
 
+# Default ingestion cadence (minutes between fetches) used by the scheduler when a source sets no
+# interval_minutes. Fast-moving signals (alerts, detections, fraud) are pulled often; slow-moving posture
+# data (scans, code analysis, backups) rarely - most vendor APIs only refresh those a few times a day and
+# frequent pulls just burn API quota. See docs/INGESTION_OPERATIONS.md.
+DEFAULT_CADENCE_MINUTES: dict[Domain, int] = {
+    Domain.SOC: 15, Domain.EDR: 15, Domain.FRAUD: 15,
+    Domain.IDENTITY: 30, Domain.EMAIL: 30, Domain.WAF: 30,
+    Domain.THREAT_INTEL: 60, Domain.BUG_BOUNTY: 60, Domain.WEB_PROXY: 60, Domain.FIREWALL: 60, Domain.ZTNA: 60,
+    Domain.DLP: 60, Domain.AI_SECURITY: 60, Domain.OT: 60,
+    Domain.CLOUD: 240, Domain.PAM: 240,
+    Domain.VMDR: 360, Domain.BRAND: 360,
+    Domain.BACKUP: 720,
+    Domain.SAST: 1440, Domain.DAST: 1440,
+}
+
+
+def default_cadence(domain: Domain | str) -> int:
+    d = Domain(domain) if isinstance(domain, str) else domain
+    return DEFAULT_CADENCE_MINUTES.get(d, 60)
+
+
 def spec(domain: Domain | str) -> DomainSpec:
     d = Domain(domain) if isinstance(domain, str) else domain
     return SPECS[d]

@@ -1,6 +1,6 @@
 # Agent catalogue
 
-Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 36 agents: 15 core (including the orchestrator), 21 connector.
+Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 37 agents: 16 core (including the orchestrator), 21 connector.
 
 ## Core agents
 
@@ -9,6 +9,7 @@ Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 36 agents: 1
 | 0 | **Orchestrator** | Builds the phase-appropriate pipeline, runs agents with failure isolation, persists results and audit. |
 | 0 | **AssetContextAgent** | Loads CMDB / crown-jewel register and enriches findings with business context. |
 | 0 | **DataQualityAgent** | Deduplicates, validates and scores the trustworthiness of incoming data; resolves hosts, IPs, MACs, device ids and user spellings to one asset / identity. |
+| 0 | **IngestionMonitorAgent** | Continuously validates every ingestion source, every run: consecutive failures, staleness and silence, volume anomalies against a baseline, schema drift and mapping quality. Raises a self-resolving coverage-gap finding and an alert for failing, stale or volume-drop sources (see [INGESTION_OPERATIONS.md](INGESTION_OPERATIONS.md)). |
 | 0 | **LifecycleAgent** | Tracks findings across runs: sticky first-seen, carry-forward when a source fails, resolution rules per sync mode (snapshot: not seen in N full pulls; incremental: closed by the source or expired). |
 | 1 | **ThreatHuntAgent** | Hunts recent threat-intel indicators across SIEM telemetry (Sentinel KQL, Splunk SPL, QRadar AQL, Elastic / OpenSearch ECS fields); every sighting becomes a SOC detection and marks the advisory as sighted. |
 | 1 | **ThreatIntelAgent** | Enriches vulnerabilities with CISA KEV, FIRST EPSS and in-environment exploitation evidence. |
@@ -22,12 +23,12 @@ Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 36 agents: 1
 | 3 | **ComplianceMappingAgent** | Maps findings to NIST CSF 2.0, ISO 27001 and PCI DSS controls; flags at-risk controls. |
 | 4 | **NarrativeAgent** | Business-language executive summaries; template engine by default, optional LLM with numeric grounding guardrail. |
 
-Pipeline order: AssetContext → connectors → ThreatHunt (optional) → DataQuality (entity resolution, dedupe, CVE/IOC keys) → Lifecycle → ThreatIntel (KEV/EPSS + relevance filter for external intel) → ControlAssurance → Correlation → Prioritization → ComplianceMapping → Action → Decision. Reporting, Narrative and ChatOps run on demand / on schedule.
+Pipeline order: AssetContext → connectors (each source on its own cadence) → ThreatHunt (optional) → DataQuality (entity resolution, dedupe, CVE/IOC keys) → IngestionMonitor → Lifecycle → ThreatIntel (KEV/EPSS + relevance filter for external intel) → ControlAssurance → Correlation → Prioritization → ComplianceMapping → Action → Decision. Reporting, Narrative and ChatOps run on demand / on schedule.
 
 ## Connector agents
 
 Every connector agent is product-agnostic; adapters decide how data is fetched (several sources per agent are allowed). All adapters are read-only.
-Every connector agent can also read its domain from the SIEM: `sentinel`, `splunk`, `qradar`, `elastic`, `sumologic` and `google_secops` (see [SIEM_INTEGRATION.md](SIEM_INTEGRATION.md)).
+Every connector agent can also read its domain from the SIEM: `sentinel`, `splunk`, `qradar`, `elastic`, `sumologic` and `google_secops` (see [SIEM_INTEGRATION.md](SIEM_INTEGRATION.md)), from any REST API (`http_json`), or from a vendor MCP server (`mcp`, see [MCP.md](MCP.md)).
 
 ### EndpointSentinelAgent - Endpoint Detection & Response (phase 1)
 

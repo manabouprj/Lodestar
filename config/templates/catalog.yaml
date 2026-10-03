@@ -357,3 +357,12 @@ _generic:
     records: data
     paginate: {type: next_field, path: links.next}
     field_map: {finding_id: id, title: name, severity: severity, asset_id: host, user_id: user, first_seen: created}
+  mcp:
+    product: Any security product that ships a remote MCP server (one read-only tool, mapped like http_json)
+    url: https://mcp.vendor.example/mcp
+    auth: {type: bearer, token: "${VENDOR_MCP_TOKEN}"}
+    tool: list_alerts
+    arguments: {since: "{since}", status: open, limit: 500}
+    records: alerts
+    cursor_column: created_at
+    field_map: {finding_id: id, title: title, severity: severity, asset_id: hostname, user_id: user, first_seen: created_at}

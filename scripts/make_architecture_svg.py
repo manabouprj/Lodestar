@@ -27,16 +27,16 @@ SOURCES = [
     ("Business risk", ["Fraud engine", "Brand / DRP", "AI security", "DLP"]),
 ]
 EXTERNAL = ["HackerOne bug bounty", "CERT / ISAC (TAXII)", "MISP", "PSIRT / CISA CSAF", "Advisory mailbox"]
-PATHS = ["SIEM-first query · 6 SIEMs", "Native API · REST / JSON", "File drop · CSV / JSON", "Signed webhook", "Feeds & mailbox"]
+PATHS = ["SIEM-first query · 6 SIEMs", "Native API · REST / MCP", "File drop · CSV / JSON", "Signed webhook", "Feeds & mailbox"]
 ROW1 = [("1", "Asset & identity", "CMDB, crown jewels,|people directory"), ("2", "Threat hunt", "intel IOCs searched|in SIEM telemetry"),
-        ("3", "Data quality", "entity resolution,|de-duplication"), ("4", "Lifecycle", "first seen, resolve,|carry forward"),
+        ("3", "Data quality", "entity resolution,|ingestion checks"), ("4", "Lifecycle", "first seen, resolve,|carry forward"),
         ("5", "Threat intel", "KEV, EPSS,|relevance filter"), ("6", "Control assurance", "coverage, freshness,|policy drift")]
 ROW2 = [("7", "Correlation", "attack paths|across tools"), ("8", "Prioritisation", "risk score →|Today / Week / Month"),
         ("9", "Compliance", "framework|readiness"), ("10", "Action drafts", "tickets and|playbooks"),
         ("11", "Decision agent", "what only a|human may do")]
 OUTPUTS = [("Dashboard", "CISO + technical teams"), ("Business reports", "weekly · monthly · quarterly"),
-           ("Slack / Teams", "ask, brief, decide"), ("REST API", "SSO, RBAC, per-org"),
-           ("ITSM", "ServiceNow / Jira, approved only"), ("Metrics", "Prometheus /metrics")]
+           ("Slack / Teams", "ask, brief, decide"), ("REST API · MCP", "SSO, RBAC, AI assistants"),
+           ("ITSM", "ServiceNow / Jira, approved only"), ("Metrics & alerts", "Prometheus, ingestion alerts")]
 
 
 class Svg:
@@ -114,12 +114,12 @@ def build(theme: str) -> str:
         s.chip(px, y1 + 40, pw, p, t["ing"], h=26)
         px += pw + 12
     s.text(42, y1 + 92, "21 connector agents  ·  one per control domain  ·  failure-isolated (a failed source never closes findings)"
-           "  ·  sync cursors  ·  per-source intervals", 12, t["ink2"])
+           "  ·  per-source cadence 15 min - 24 h  ·  validated every run", 12, t["ink2"])
 
     # 3. pipeline ---------------------------------------------------------
     y2 = 392
     s.arrow(113, y1 + 106, 113, y2 - 2)
-    s.band(24, y2, 920, 270, t["pipe"], "Agent pipeline", "phase-gated 0 → 4, runs every few hours")
+    s.band(24, y2, 920, 270, t["pipe"], "Agent pipeline", "phase-gated 0 → 4, 15-minute scheduler tick")
     bw, bh, gap = 140, 76, 10
 
     def step(x, y, n, name, sub):

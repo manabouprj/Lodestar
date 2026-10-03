@@ -1,7 +1,8 @@
 """Orchestrator - assembles the agent pipeline for the configured deployment
 phase, runs it, computes KRIs/posture and persists the result.
 
-    Phase 0  AssetContext, DataQuality                      (foundation)
+    Phase 0  AssetContext, DataQuality, IngestionMonitor,
+             Lifecycle                                      (foundation)
     Phase 1  + EDR, VMDR, Identity, SOC, Email connectors,
              ThreatIntel, ControlAssurance, Prioritization  (see & prioritise)
     Phase 2  + Firewall, WAF, Proxy, ZTNA, PAM, Cloud,
@@ -27,6 +28,7 @@ from .agents.core import (
     CorrelationAgent,
     DataQualityAgent,
     DecisionAgent,
+    IngestionMonitorAgent,
     LifecycleAgent,
     PrioritizationAgent,
     ThreatHuntAgent,
@@ -55,7 +57,7 @@ def build_pipeline(settings: Settings) -> list[BaseAgent]:
     stages += build_connector_agents(settings, p)
     if (settings.raw.get("threat_hunt") or {}).get("enabled") and ThreatHuntAgent.phase <= p:
         stages.append(ThreatHuntAgent())      # before DataQuality so sightings get entity resolution
-    stages += [DataQualityAgent(), LifecycleAgent()]
+    stages += [DataQualityAgent(), IngestionMonitorAgent(), LifecycleAgent()]
     for agent in (ThreatIntelAgent(), ControlAssuranceAgent(), CorrelationAgent(), PrioritizationAgent(),
                   ComplianceMappingAgent(), ActionAgent(), DecisionAgent()):
         if agent.phase <= p:
@@ -79,18 +81,20 @@ class Orchestrator:
             return datetime.fromisoformat(self.dataset["as_of"])
         return datetime.now(timezone.utc)
 
-    def run(self, persist: bool = True, force: bool = False, lock_wait: float = 0) -> PipelineResult:
+    def run(self, persist: bool = True, force: bool = False, lock_wait: float = 0,
+            scheduled: bool = False) -> PipelineResult:
         """One pipeline run. Persisting runs hold a per-org lease lock so the API, scheduler and CLI
-        never run the same organisation concurrently."""
+        never run the same organisation concurrently. `scheduled` = run by `lodestar schedule`: each
+        source is fetched on its own cadence (interval_minutes or the domain default)."""
         if not persist:
-            return self._run(persist=False, force=force)
+            return self._run(persist=False, force=force, scheduled=scheduled)
         with self.store.lease(f"run:{self.settings.org_name}", ttl_seconds=3 * 3600, wait_seconds=lock_wait):
-            return self._run(persist=True, force=force)
+            return self._run(persist=True, force=force, scheduled=scheduled)
 
-    def _run(self, persist: bool, force: bool) -> PipelineResult:
+    def _run(self, persist: bool, force: bool, scheduled: bool = False) -> PipelineResult:
         now = self._now()
         ctx = AgentContext(settings=self.settings, vertical=self.vertical, now=now, dataset=self.dataset,
-                           store=self.store, dry_run=not persist, force=force)
+                           store=self.store, dry_run=not persist, force=force, scheduled=scheduled)
         state = PipelineState()
         for agent in build_pipeline(self.settings):
             state = agent(ctx, state)

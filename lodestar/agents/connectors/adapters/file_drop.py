@@ -74,7 +74,9 @@ def map_rows(rows: Iterable[dict[str, Any]], *, domain: Domain, product: str, se
         raise ValueError(f"settings.finding_type '{ftype_default}' is not valid - use one of "
                          f"{', '.join(t.value for t in FindingType)}")
     extra = settings.get("evidence_fields") or []
+    rows = list(rows)
     findings, warnings = [], []
+    drift = schema_drift(rows, fmap)
     now = datetime.now(timezone.utc)
     for row in rows:
         def get(key, default=None, _r=row):
@@ -116,7 +118,19 @@ def map_rows(rows: Iterable[dict[str, Any]], *, domain: Domain, product: str, se
             first_seen=first, last_seen=last, remediation=str(get("remediation", "") or "")[:1000], evidence=ev))
     # collapse repeated warnings
     uniq = sorted(set(warnings))
-    return findings, [f"{w} ({warnings.count(w)}x)" if warnings.count(w) > 1 else w for w in uniq]
+    return findings, drift + [f"{w} ({warnings.count(w)}x)" if warnings.count(w) > 1 else w for w in uniq]
+
+
+def schema_drift(rows: list[dict[str, Any]], fmap: dict[str, Any]) -> list[str]:
+    """A field_map column that is absent from EVERY row usually means the vendor renamed a field
+    (API version change, new export template) - the mapping silently falls back to defaults."""
+    if not rows or not fmap:
+        return []
+    present: set[str] = set()
+    for r in rows:
+        present.update(r.keys())
+    gone = sorted({f"{col} ({key})" for key, col in fmap.items() if isinstance(col, str) and col not in present})
+    return [f"schema drift: mapped column(s) missing from all {len(rows)} rows: {', '.join(gone)}"] if gone else []
 
 
 class FileDropAdapter(Adapter):

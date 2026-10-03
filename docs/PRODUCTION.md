@@ -116,16 +116,20 @@ If regulation requires physical separation, run separate deployments.
 Suggested alerts:
 
 ```yaml
-- alert: LodestarRunsStale          # scheduler stopped or failing
-  expr: time() - lodestar_last_run_timestamp_seconds > 2 * 4 * 3600
-- alert: LodestarSourceDown         # a connector keeps failing (its findings are carried, not closed)
-  expr: lodestar_connector_up == 0
-  for: 12h
+- alert: LodestarRunsStale          # scheduler stopped or failing (it ticks every 15 min)
+  expr: time() - lodestar_last_run_timestamp_seconds > 3600
+- alert: LodestarSourceFailing      # IngestionMonitorAgent: failing or stale (findings are carried, not closed)
+  expr: lodestar_source_state{state=~"failing|stale"} == 1
+  for: 10m
 - alert: LodestarDecisionsWaiting
   expr: lodestar_decisions_pending > 10
 - alert: LodestarKRIsUnmeasured
   expr: lodestar_kri_coverage_pct < 60
 ```
+
+Ingestion has its own validation and alerting (Slack, Teams or a webhook, without Prometheus): see
+[INGESTION_OPERATIONS.md](INGESTION_OPERATIONS.md). The MCP endpoint for AI assistants (`/mcp/`) shares the
+API's authentication and audit: see [MCP.md](MCP.md).
 
 Set `LODESTAR_LOG_FORMAT=json` to write one JSON object per line and ship the logs to your SIEM.
 The audit trail (sign-ins, runs, verdicts, approvals, webhook ingests) is in the store and at

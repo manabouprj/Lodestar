@@ -407,6 +407,14 @@ def doctor(config: str | None = None, online: bool = False) -> Report:
                      f"KRIs measured {snap.kri_coverage_pct}%", "" if (snap.kri_coverage_pct or 0) >= 60 else "lodestar kpis")
         elif live:
             r.warn(tag, "no pipeline run yet", f"lodestar run --org {t.org_key}")
+        ing = ((res.data_quality.get("ingestion") or {}).get("sources") or {}) if res else {}
+        bad = {k: v for k, v in ing.items() if v.get("state") in ("failing", "stale", "volume_drop", "volume_spike", "degraded")}
+        if ing and not bad:
+            r.ok(tag, f"ingestion: {len(ing)} source(s) monitored, none failing or stale")
+        for k, v in sorted(bad.items()):
+            (r.fail if live and v["state"] in ("failing", "stale") else r.warn)(
+                tag, f"ingestion {k}: {v['state']} - {v.get('detail', '')[:120]}",
+                f"lodestar check-ingestion --domain {v.get('domain')}")
     # SSO
     oidc = (raw.get("security") or {}).get("oidc") or {}
     if oidc.get("issuer") and not ENV_RE.search(str(oidc.get("issuer"))):

@@ -8,6 +8,10 @@ Metrics (GET /metrics, bearer LODESTAR_METRICS_TOKEN) - alert on these, not on l
   lodestar_connector_up{org,source}                        1 = last attempt succeeded
   lodestar_connector_last_success_timestamp_seconds{org,source}
   lodestar_connector_items{org,source}
+  lodestar_source_state{org,source,state}                  1 for the current ingestion state (healthy, retrying,
+                                                           failing, stale, volume_drop, volume_spike, degraded, awaiting_data)
+  lodestar_source_consecutive_failures{org,source}
+  lodestar_source_cadence_minutes{org,source}             fetch cadence under the scheduler (configured or default)
   lodestar_http_requests_total{method,code}
 Logs: LODESTAR_LOG_FORMAT=json -> one JSON object per line (ship to the SIEM); LODESTAR_LOG=INFO|DEBUG.
 """
@@ -48,6 +52,7 @@ def prometheus(store, orgs: dict[str, str], reqs: dict[tuple[str, int], int], la
     from . import __version__
     metric("lodestar_build_info", "LODESTAR version", "gauge", [({"version": __version__}, 1)])
     last_run, posture, kcov, open_, pending, up, last_ok, items = [], [], [], [], [], [], [], []
+    states, fails, cadence = [], [], []
     for key, org_name in orgs.items():
         org = {"org": key}
         info = store.latest_run_info(org_name)
@@ -63,6 +68,9 @@ def prometheus(store, orgs: dict[str, str], reqs: dict[tuple[str, int], int], la
                 open_.append(({**org, "horizon": h}, n))
             decided = {k for k, v in store.decision_state(org_name).items() if v["status"] != "pending"}
             pending.append((org, sum(1 for d in res.decisions if d.get("status") == "pending" and d["decision_id"] not in decided)))
+            for src, rec in ((res.data_quality.get("ingestion") or {}).get("sources") or {}).items():
+                if rec.get("cadence_minutes") is not None:
+                    cadence.append(({**org, "source": src}, rec["cadence_minutes"]))
         for src, st in store.all_connector_state(org_name).items():
             lab = {**org, "source": src}
             ok = st.get("last_success") is not None and (st.get("last_attempt") is None or st.get("last_error") in (None, ""))
@@ -71,6 +79,9 @@ def prometheus(store, orgs: dict[str, str], reqs: dict[tuple[str, int], int], la
                 last_ok.append((lab, _ts(st["last_success"])))
             if st.get("items") is not None:
                 items.append((lab, st["items"]))
+            fails.append((lab, int(st.get("failures") or 0)))
+            if (st.get("monitor") or {}).get("state"):
+                states.append(({**lab, "state": st["monitor"]["state"]}, 1))
     metric("lodestar_last_run_timestamp_seconds", "Unix time of the last pipeline run", "gauge", last_run)
     metric("lodestar_posture_score", "Posture score 0-100", "gauge", posture)
     metric("lodestar_kri_coverage_pct", "Share of the industry profile KRIs that are measured", "gauge", kcov)
@@ -79,6 +90,9 @@ def prometheus(store, orgs: dict[str, str], reqs: dict[tuple[str, int], int], la
     metric("lodestar_connector_up", "1 if the last fetch of the source succeeded", "gauge", up)
     metric("lodestar_connector_last_success_timestamp_seconds", "Unix time of the last successful fetch", "gauge", last_ok)
     metric("lodestar_connector_items", "Items returned by the last successful fetch", "gauge", items)
+    metric("lodestar_source_state", "Current ingestion state of the source (1 = in this state)", "gauge", states)
+    metric("lodestar_source_consecutive_failures", "Consecutive failed fetches of the source", "gauge", fails)
+    metric("lodestar_source_cadence_minutes", "Minutes between fetches of the source", "gauge", cadence)
     metric("lodestar_http_requests_total", "HTTP requests served", "counter",
            [({"method": m, "code": f"{c}xx"}, n) for (m, c), n in sorted(reqs.items())])
     metric("lodestar_http_request_seconds_sum", "Total request time", "counter", [({}, round(lat[0], 4))])

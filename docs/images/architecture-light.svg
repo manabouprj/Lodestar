@@ -103,7 +103,7 @@
 <text x="62" y="319.5" font-size="12" font-weight="400" fill="#1f2328" text-anchor="start">SIEM-first query · 6 SIEMs</text>
 <rect x="268" y="302" width="214" height="26" rx="5" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
 <circle cx="279" cy="315.0" r="3" fill="#1a7f37"/>
-<text x="288" y="319.5" font-size="12" font-weight="400" fill="#1f2328" text-anchor="start">Native API · REST / JSON</text>
+<text x="288" y="319.5" font-size="12" font-weight="400" fill="#1f2328" text-anchor="start">Native API · REST / MCP</text>
 <rect x="494" y="302" width="214" height="26" rx="5" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
 <circle cx="505" cy="315.0" r="3" fill="#1a7f37"/>
 <text x="514" y="319.5" font-size="12" font-weight="400" fill="#1f2328" text-anchor="start">File drop · CSV / JSON</text>
@@ -113,12 +113,12 @@
 <rect x="946" y="302" width="214" height="26" rx="5" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
 <circle cx="957" cy="315.0" r="3" fill="#1a7f37"/>
 <text x="966" y="319.5" font-size="12" font-weight="400" fill="#1f2328" text-anchor="start">Feeds &amp; mailbox</text>
-<text x="42" y="354" font-size="12" font-weight="400" fill="#59636e" text-anchor="start">21 connector agents  ·  one per control domain  ·  failure-isolated (a failed source never closes findings)  ·  sync cursors  ·  per-source intervals</text>
+<text x="42" y="354" font-size="12" font-weight="400" fill="#59636e" text-anchor="start">21 connector agents  ·  one per control domain  ·  failure-isolated (a failed source never closes findings)  ·  per-source cadence 15 min - 24 h  ·  validated every run</text>
 <line x1="113" y1="368" x2="113" y2="390" stroke="#818b98" stroke-width="1.6" marker-end="url(#ah)"/>
 <rect x="24" y="392" width="920" height="270" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1"/>
 <rect x="24" y="402" width="4" height="250" rx="2" fill="#9a6700"/>
 <text x="42" y="418" font-size="14" font-weight="650" fill="#1f2328" text-anchor="start">Agent pipeline</text>
-<text x="162.60000000000002" y="418" font-size="12" font-weight="400" fill="#59636e" text-anchor="start">phase-gated 0 → 4, runs every few hours</text>
+<text x="162.60000000000002" y="418" font-size="12" font-weight="400" fill="#59636e" text-anchor="start">phase-gated 0 → 4, 15-minute scheduler tick</text>
 <rect x="42" y="438" width="140" height="76" rx="7" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
 <circle cx="57" cy="456" r="10" fill="none" stroke="#9a6700" stroke-width="1.5"/>
 <text x="57" y="460" font-size="10.5" font-weight="700" fill="#9a6700" text-anchor="middle">1</text>
@@ -137,7 +137,7 @@
 <text x="357" y="460" font-size="10.5" font-weight="700" fill="#9a6700" text-anchor="middle">3</text>
 <text x="372" y="461" font-size="12" font-weight="650" fill="#1f2328" text-anchor="start">Data quality</text>
 <text x="352" y="483" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">entity resolution,</text>
-<text x="352" y="498" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">de-duplication</text>
+<text x="352" y="498" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">ingestion checks</text>
 <line x1="333" y1="476.0" x2="341" y2="476.0" stroke="#818b98" stroke-width="1.6" marker-end="url(#ah)"/>
 <rect x="492" y="438" width="140" height="76" rx="7" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
 <circle cx="507" cy="456" r="10" fill="none" stroke="#9a6700" stroke-width="1.5"/>
@@ -230,14 +230,14 @@
 <text x="432" y="748" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start">Slack / Teams</text>
 <text x="432" y="766" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">ask, brief, decide</text>
 <rect x="609" y="728" width="180" height="48" rx="6" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
-<text x="621" y="748" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start">REST API</text>
-<text x="621" y="766" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">SSO, RBAC, per-org</text>
+<text x="621" y="748" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start">REST API · MCP</text>
+<text x="621" y="766" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">SSO, RBAC, AI assistants</text>
 <rect x="798" y="728" width="180" height="48" rx="6" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
 <text x="810" y="748" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start">ITSM</text>
 <text x="810" y="766" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">ServiceNow / Jira, approved only</text>
 <rect x="987" y="728" width="180" height="48" rx="6" fill="#eef1f4" stroke="#d1d9e0" stroke-width="1"/>
-<text x="999" y="748" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start">Metrics</text>
-<text x="999" y="766" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">Prometheus /metrics</text>
+<text x="999" y="748" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start">Metrics &amp; alerts</text>
+<text x="999" y="766" font-size="11" font-weight="400" fill="#59636e" text-anchor="start">Prometheus, ingestion alerts</text>
 <rect x="24" y="818" width="1152" height="112" rx="8" fill="#f6f8fa" stroke="#cf222e" stroke-width="1.4" stroke-dasharray="6 4"/>
 <rect x="24" y="828" width="4" height="92" rx="2" fill="#cf222e"/>
 <text x="42" y="846" font-size="14" font-weight="650" fill="#1f2328" text-anchor="start">People decide</text>

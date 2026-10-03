@@ -112,6 +112,13 @@ python -m lodestar test-connector threat_intel
 | Severity always `medium` | Add a `severity_map` for the product's values |
 | Counts differ from the console | Check the query's time window (`lookback_days`) and its filters |
 
+When every domain collects, grade them all at once with the ingestion sanity test. It checks volume,
+schema drift, field mapping, CMDB match and freshness, and stores nothing:
+
+```powershell
+python -m lodestar check-ingestion          # PASS / WARN / FAIL per source; exit code 1 on FAIL
+```
+
 Then run the full pipeline and open the dashboard:
 
 ```powershell
@@ -133,7 +140,9 @@ Crown-jewel assets are named. Data trust is medium or high. The weekly report re
 | Decision owners | Map roles to the people who decide (ciso, analyst, exec). See [HUMAN_IN_THE_LOOP.md](HUMAN_IN_THE_LOOP.md) | 30 min |
 | Single sign-on | `security.oidc` with group to role mapping. See [PRODUCTION.md](PRODUCTION.md#single-sign-on) | 1 h |
 | Slack or Teams | [CHATOPS.md](CHATOPS.md): daily brief, urgent alerts, decisions in chat | 1 h |
-| Schedule, back up, monitor | `docker compose up -d` (API and scheduler); `ops.backup_dir`; scrape `/metrics` | 1 h |
+| Schedule, back up, monitor | `docker compose up -d` (API and scheduler, which pulls each source on its own cadence); `ops.backup_dir`; scrape `/metrics` | 1 h |
+| Ingestion alerts | `ingestion.alerts` sends failing, stale or volume-drop sources to Slack, Teams or an on-call webhook. Set `expect.max_silence_hours` on always-busy sources. See [INGESTION_OPERATIONS.md](INGESTION_OPERATIONS.md) | 30 min |
+| AI assistants (optional) | Point Claude, Copilot or Foundry at `https://<host>/mcp/` with a dedicated analyst key. See [MCP.md](MCP.md) | 15 min |
 | ITSM | Leave `itsm.dry_run: true` until the change board approves the ticket format | - |
 | Go-live gate | `lodestar doctor --online` shows no failures; `/readyz` returns 200 | 15 min |
 
