@@ -84,7 +84,7 @@ identity:
 # IOC hunting: indicators from your intel feeds are searched in SIEM telemetry every run (read-only)
 threat_hunt:
   enabled: false
-  provider: sentinel            # sentinel | splunk
+  provider: sentinel            # sentinel | splunk | qradar | elastic (docs/SIEM_INTEGRATION.md)
   lookback_hours: 24
   max_iocs: 500
   ioc_max_age_days: 30

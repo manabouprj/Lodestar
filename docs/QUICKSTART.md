@@ -3,8 +3,9 @@
 This plan is for a security team of any size, in any industry, that wants LODESTAR running on its
 own data quickly. It works because of three choices:
 
-1. **SIEM-first.** If Microsoft Sentinel or Splunk already receives your EDR, identity, e-mail, cloud
-   and SOC alerts, one read-only query per domain replaces most product integrations. The queries
+1. **SIEM-first.** If your SIEM (Microsoft Sentinel, Splunk, IBM QRadar, Elastic / OpenSearch, Sumo Logic or
+   Google SecOps) already receives your EDR, identity, e-mail, cloud and SOC alerts, one read-only query per
+   domain replaces most product integrations ([SIEM_INTEGRATION.md](SIEM_INTEGRATION.md)). The queries
    are ready-made in [`config/templates/catalog.yaml`](../config/templates/catalog.yaml).
 2. **Generated configuration.** `lodestar init` writes a working live config, a `.env` with
    generated secrets, the CMDB and identity templates, and the drop folders.

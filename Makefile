@@ -7,4 +7,4 @@ serve:    ; python -m lodestar serve
 validate: ; python -m lodestar validate
 doctor:   ; python -m lodestar doctor
 lock:     ; pip-compile -q --strip-extras --no-emit-index-url --output-file requirements.txt requirements.in
-docker:   ; docker build -t lodestar:2.0.0 .
+docker:   ; docker build -t lodestar:2.1.0 .

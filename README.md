@@ -37,7 +37,7 @@ A lodestar is the star navigators steer by. The platform does the same job for a
 | **Board-ready reporting** | KRIs against risk appetite, decisions requested from leadership, indicative financial exposure, framework readiness (NIST CSF 2.0, ISO 27001:2022, PCI DSS v4.0.1) |
 | **One platform, any industry** | Industry profiles as YAML: banking, fintech, aviation, retail, oil & gas, power & utilities, telecom, ports & logistics |
 | **Numbers you can defend** | Findings keep a history (first seen, carried forward when a tool is down, resolved only when the source says so); every KRI shows its source, and unmeasured KRIs never count as "within appetite" |
-| **Running in a day or two** | `lodestar init` writes a SIEM-first configuration (Sentinel / Splunk) for your industry; `lodestar doctor` lists every gap with its fix; one deployment serves several organisations with SSO |
+| **Running in a day or two** | `lodestar init` writes a SIEM-first configuration for your industry (Sentinel, Splunk, QRadar, Elastic, Sumo Logic or Google SecOps); `lodestar doctor` lists every gap with its fix; one deployment serves several organisations with SSO |
 
 ## Who it is for
 
@@ -120,7 +120,7 @@ What the dashboard shows, top to bottom:
 How to read it, top to bottom:
 
 1. **Sources.** LODESTAR reads from the controls you already run, with read-only scopes, plus external reports and intelligence. It never writes to them.
-2. **Integration paths.** Pick the lightest path per control. Most teams start **SIEM-first**: one Sentinel or Splunk query per domain covers most tools on day one. Native APIs, file drops and signed webhooks fill the gaps. Each control domain has its own connector agent, so one failing source never hides the others and never closes their findings.
+2. **Integration paths.** Pick the lightest path per control. Most teams start **SIEM-first**: one read-only query per domain against the SIEM they already run (Sentinel, Splunk, QRadar, Elastic / OpenSearch, Sumo Logic, Google SecOps) covers most tools on day one; any other SIEM connects through REST, a signed webhook or a scheduled export. Native APIs, file drops and signed webhooks fill the gaps. Each control domain has its own connector agent, so one failing source never hides the others and never closes their findings.
 3. **Agent pipeline.** The eleven core stages are phase-gated, so you switch them on as data quality allows (see [Deployment phases](docs/DEPLOYMENT_PHASES.md)). Finding history, connector cursors, decisions and the audit trail live in the store, scoped per organisation. The industry profile sets the weights, KRIs and frameworks for aviation, banking, fintech, retail, energy, power, telecom and ports.
 4. **Delivery.** The dashboard, business reports, chat, API and metrics all read the same run, so no number differs between them.
 5. **People decide.** Agents inform and prepare. A human's verdict is the only thing that sends an action to ServiceNow or Jira.
@@ -207,25 +207,46 @@ CyberArk, Wiz, Checkmarx, Invicti, Recorded Future, Purview DLP, Claroty, Rubrik
 
 ## Integrations
 
+LODESTAR reads from the tools you already run, read-only. It connects in one of five ways, and most
+teams start with the first:
+
+1. **SIEM-first.** One read-only query per control domain against your SIEM, for every tool that already
+   forwards to it. One credential and one network path cover most of phase 1.
+2. **Native adapters.** Microsoft Graph Security, Entra ID Protection, Tenable, HackerOne, TAXII, MISP, CSAF and mailbox.
+3. **REST / JSON.** The `http_json` adapter reads any product or SIEM with a JSON read API. No code needed.
+4. **File drop.** CSV or JSON exports with a field map.
+5. **Signed webhook.** Pushed from the product, a SOAR or MERIDIAN, per organisation.
+
+### Supported SIEM platforms
+
+| SIEM | How LODESTAR reads it | Threat-intel hunting | Status |
+|---|---|---|---|
+| Microsoft Sentinel | KQL, Azure Monitor Logs API | Yes | Native |
+| Splunk Enterprise / Cloud / ES | SPL, REST search export | Yes | Native |
+| IBM QRadar (on-prem and SaaS) | AQL (Ariel) and open offenses | Yes | Native |
+| Elastic Security, OpenSearch, Wazuh | ES\|QL or Query DSL | Yes | Native |
+| Sumo Logic | Search Job API | Not yet | Native |
+| Google Security Operations (Chronicle) | UDM search, Chronicle API | Not yet | Preview |
+| MERIDIAN | Signed webhook (push) | Built in | Native |
+| LogRhythm, Exabeam, Securonix, FortiSIEM, InsightIDR, ArcSight, Falcon Next-Gen SIEM, others | `http_json`, signed webhook or file drop | No | Generic |
+
+`lodestar init --siem <sentinel|splunk|qradar|elastic|sumologic|google_secops>` writes ready-made,
+least-privilege queries for each domain. **[docs/SIEM_INTEGRATION.md](docs/SIEM_INTEGRATION.md)** has the
+permissions, setup, field mapping, hunting and limits for each platform.
+
+### Control domains and example products
+
 | Control | Example products | Phase |
 |---|---|---:|
-| EDR, VMDR, Identity, SOC/SIEM, Email | CrowdStrike, Defender, SentinelOne · Qualys, Tenable, Rapid7 · Entra ID, Okta · Sentinel, Splunk, QRadar · Defender for O365, Mimecast, Proofpoint | 1 |
+| EDR, VMDR, Identity, SOC/SIEM, Email | CrowdStrike, Defender, SentinelOne · Qualys, Tenable, Rapid7 · Entra ID, Okta · Sentinel, Splunk, QRadar, Elastic, Sumo Logic, Google SecOps · Defender for O365, Mimecast, Proofpoint | 1 |
 | Firewall, WAF, Web proxy, ZTNA, PAM, Cloud, **Fraud** | Palo Alto, Fortinet, Check Point · Cloudflare, Akamai, F5 · Zscaler, Netskope · CyberArk, BeyondTrust, Delinea · Wiz, Defender for Cloud, Prisma · Feedzai, Actimize, SAS, FICO, BioCatch | 2 |
 | SAST, DAST, Brand, AI security, DLP, OT, Backup | Checkmarx, Veracode, Snyk · Invicti, Burp · Recorded Future, ZeroFox · Purview AI, Lakera, Prompt Security · Purview DLP, Forcepoint · Claroty, Nozomi, Dragos · Rubrik, Cohesity, Veeam | 3 |
 | Threat intelligence & advisories | National CERT / ISAC TAXII 2.1, MISP, CISA ICS & vendor PSIRT CSAF 2.0, advisory mailbox (IMAP / Microsoft Graph / .eml) | 1 |
 | Bug bounty / VDP | HackerOne (API + signed webhooks), security@ mailbox | 2 |
 | Chat & ticketing | Slack, Microsoft Teams · ServiceNow, Jira | 2 |
 
-There are four ways to connect a product. Use the lightest one that works:
-
-1. **SIEM-first.** One read-only KQL query (Microsoft Sentinel) or SPL search (Splunk) per domain,
-   for every tool already forwarding to the SIEM. Ready-made templates are in
-   [`config/templates/catalog.yaml`](config/templates/catalog.yaml).
-2. **Native adapters.** Microsoft Graph Security, Entra ID Protection, Tenable, HackerOne, TAXII, MISP, CSAF and mailbox.
-3. **File drop.** CSV or JSON exports with a field map. No code needed.
-4. **Signed webhook.** Pushed from the product or a SOAR, per organisation.
-
-See [docs/CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md). The SIEM is also used to **hunt threat-intel
+Products without a native adapter are reached through the SIEM, REST, a file drop or a webhook. See
+[docs/CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md). The SIEM is also used to **hunt threat-intel
 indicators** in your telemetry every run, so an ISAC indicator seen in your own logs becomes a
 priority.
 
@@ -268,8 +289,9 @@ See [docs/DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md).
 
 ```
 lodestar/
-  agents/connectors/   21 connector agents + adapters (Sentinel, Splunk, Graph Security, Entra, Tenable, HackerOne,
-                       TAXII/STIX, MISP, CSAF, mailbox, file_drop, webhook, mock)
+  agents/connectors/   21 connector agents + adapters (Sentinel, Splunk, QRadar, Elastic/OpenSearch, Sumo Logic,
+                       Google SecOps, Graph Security, Entra, Tenable, HackerOne, TAXII/STIX, MISP, CSAF, mailbox,
+                       http_json, file_drop, webhook, mock)
   agents/core/         asset context, threat hunt, data quality, lifecycle, threat intel, control assurance,
                        correlation, prioritisation, compliance, action, decision desk, narrative
   entities.py          asset and identity resolution (FQDN, IP, MAC, device ids, UPN / sam / object id)
@@ -312,6 +334,7 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 | [GITHUB_SETUP.md](docs/GITHUB_SETUP.md) | Pushing to GitHub from Windows, publishing the demo dashboard on GitHub Pages |
 | [SCORING_MODEL.md](docs/SCORING_MODEL.md) | How priorities are calculated |
 | [DEPLOYMENT_PHASES.md](docs/DEPLOYMENT_PHASES.md) | Rollout plan and exit criteria |
+| [SIEM_INTEGRATION.md](docs/SIEM_INTEGRATION.md) | **Supported SIEM platforms**: Sentinel, Splunk, QRadar, Elastic / OpenSearch / Wazuh, Sumo Logic, Google SecOps, MERIDIAN and any other SIEM; permissions, setup, hunting, limits |
 | [CONNECTOR_GUIDE.md](docs/CONNECTOR_GUIDE.md) | Connecting products |
 | [AGENT_CATALOG.md](docs/AGENT_CATALOG.md) | Every agent, rule and industry profile |
 | [PEER_REVIEW.md](docs/PEER_REVIEW.md) | Review findings, fixes and open items |
@@ -319,11 +342,11 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 2.0.0 is production-ready for a single node serving one or many organisations. It includes:
+Version 2.1.0 is production-ready for a single node serving one or many organisations. It includes:
 
 * finding lifecycle with history;
 * asset and identity resolution;
-* SIEM-first connectors and IOC hunting;
+* SIEM-first connectors for six SIEM platforms, plus a generic REST adapter, and IOC hunting in four of them;
 * KRI provenance;
 * OIDC single sign-on and org-scoped access;
 * metrics, readiness checks and backups;
@@ -336,10 +359,11 @@ against recorded responses. Validate them against your own tenant in the first w
 Planned next:
 
 * native adapters for CrowdStrike, Qualys, Zscaler, CyberArk, Wiz, Cloudflare, Feedzai and Bugcrowd;
+* threat-intel hunting in Sumo Logic and Google SecOps, and Google SecOps out of preview after tenant validation;
 * a PostgreSQL store for active-active high availability;
 * a full Teams bot with card actions.
 
-Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md).
+Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md). Changes per release are in [CHANGELOG.md](CHANGELOG.md).
 
 All demo organisations, people, hosts and `*.example` domains are fictional. CVE identifiers are
 real public CVEs used for illustration.

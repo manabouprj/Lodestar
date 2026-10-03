@@ -1,7 +1,8 @@
 # Agent setup and integration
 
 > **Fast path.** `python -m lodestar init` generates Steps 1 and 3 for you: a live config with
-> SIEM-first templates (Sentinel or Splunk) for every domain your industry needs, and a `.env` with
+> SIEM-first templates (Sentinel, Splunk, QRadar, Elastic, Sumo Logic or Google SecOps - see
+> [SIEM_INTEGRATION.md](SIEM_INTEGRATION.md)) for every domain your industry needs, and a `.env` with
 > generated secrets. `python -m lodestar doctor` then lists every remaining gap and how to fix it.
 > The one-to-two-day plan is in [QUICKSTART.md](QUICKSTART.md). This guide is the per-product
 > reference: permissions, credentials, field maps and troubleshooting.
@@ -113,7 +114,7 @@ All methods are read-only towards your tools. Webhooks are push-only into LODEST
 
 | Phase | Agents | Typical products |
 |---|---|---|
-| 1 | EndpointSentinel (EDR), VulnIntel (VMDR), IdentityGuard (Identity), SocPulse (SOC), MailShield (Email), ThreatFeed (TI feeds) | Defender / CrowdStrike, Tenable / Qualys, Entra / Okta, Sentinel / Splunk, Defender for O365 / Mimecast, CERT TAXII, ISAC MISP, CSAF, advisory mailbox |
+| 1 | EndpointSentinel (EDR), VulnIntel (VMDR), IdentityGuard (Identity), SocPulse (SOC), MailShield (Email), ThreatFeed (TI feeds) | Defender / CrowdStrike, Tenable / Qualys, Entra / Okta, any supported SIEM (SIEM_INTEGRATION.md), Defender for O365 / Mimecast, CERT TAXII, ISAC MISP, CSAF, advisory mailbox |
 | 2 | Perimeter (FW), AppShield (WAF), WebGateway (Proxy), ZeroTrustAccess (ZTNA), PrivilegeVault (PAM), CloudPosture (Cloud), FraudSentinel (Fraud), BugBounty | Palo Alto / Fortinet, Cloudflare / Akamai, Zscaler / Netskope, CyberArk, Wiz / Defender for Cloud, Feedzai / Actimize, HackerOne |
 | 3 | CodeGuard (SAST), AppProbe (DAST), BrandWatch, AIGuardian, DataGuard (DLP), OTWatch, Resilience (Backup) | Checkmarx / Snyk, Invicti / Burp, Recorded Future, Prompt Security / Purview AI, Purview DLP, Claroty / Nozomi, Rubrik / Veeam |
 

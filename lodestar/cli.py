@@ -433,7 +433,8 @@ def cmd_init(args) -> int:
     from .verticals import list_verticals, load_vertical
     org = args.org or _ask("Organisation name")
     vertical = args.vertical or _ask("Industry profile", "banking", list_verticals())
-    siem = args.siem or _ask("Which SIEM already receives your security alerts", "sentinel", ["sentinel", "splunk", "none"])
+    siem = args.siem or _ask("Which SIEM already receives your security alerts", "sentinel",
+                             ["sentinel", "splunk", "qradar", "elastic", "sumologic", "google_secops", "none"])
     v = load_vertical(vertical)
     default_domains = list(dict.fromkeys([*v.mandatory_domains, "threat_intel"]))
     if args.domains:
@@ -540,7 +541,7 @@ def main(argv=None) -> int:
     v = sub.add_parser("validate"); v.add_argument("--phase", type=int); v.set_defaults(fn=cmd_validate, dataset=None)
     a = sub.add_parser("agents"); a.set_defaults(fn=cmd_agents)
     it = sub.add_parser("init", help="generate a live configuration: org, industry, SIEM-first connectors, .env secrets")
-    it.add_argument("--org"); it.add_argument("--vertical"); it.add_argument("--siem", choices=["sentinel", "splunk", "none"])
+    it.add_argument("--org"); it.add_argument("--vertical"); it.add_argument("--siem", choices=["sentinel", "splunk", "qradar", "elastic", "sumologic", "google_secops", "none"])
     it.add_argument("--domains", help="comma separated, default = the industry's mandatory domains + threat_intel")
     it.add_argument("--primary-domain"); it.add_argument("--out")
     it.add_argument("--tenant", action="store_true", help="add an organisation as config/tenants/<key>.yaml")

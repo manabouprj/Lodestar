@@ -59,6 +59,11 @@ On demand / on schedule: Reporting, Narrative, ChatOps (Slack, Teams, dashboard,
 |---|---|---|
 | `sentinel` | incremental when the KQL uses `{since}` | Any domain already in Microsoft Sentinel / Log Analytics (Log Analytics Reader) |
 | `splunk` | incremental when the SPL uses `{since_epoch}` | Any domain already in Splunk (search role + token) |
+| `qradar` | incremental when the AQL uses `{since_ms}`; offenses = snapshot | IBM QRadar: Ariel AQL search or the open-offense list (authorised service token) |
+| `elastic` | incremental when ES\|QL / DSL uses `{since}` | Elastic Security / Elasticsearch, OpenSearch, Wazuh indexer (read on indices) |
+| `sumologic` | incremental (messages) / snapshot (records) | Sumo Logic Search Job API (access ID + key) |
+| `google_secops` | incremental | Google SecOps (Chronicle) UDM search, service account (preview) |
+| `http_json` | incremental when a `{since}` placeholder is used | Any SIEM or tool with a REST/JSON read API; bearer, header, basic or OAuth2 |
 | `ms_graph_security` | incremental (`lastUpdateDateTime`) | Defender XDR alerts: endpoint, identity, Office 365, cloud apps, cloud |
 | `entra_identity_protection` | snapshot | Risky users + MFA registration coverage |
 | `tenable_vm` | incremental (`since`, FIXED closes) | Tenable Vulnerability Management export API |

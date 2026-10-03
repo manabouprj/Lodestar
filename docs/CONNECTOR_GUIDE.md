@@ -6,15 +6,17 @@ There are four ways to bring a product into LODESTAR. Pick the lightest one that
 
 ## 0. SIEM-first (one query per domain)
 
-If the product already forwards to Microsoft Sentinel or Splunk, query the SIEM instead of
-integrating the product. You get one credential, one network path and one permission for many
+If the product already forwards to your SIEM (Microsoft Sentinel, Splunk, IBM QRadar, Elastic / OpenSearch /
+Wazuh, Sumo Logic or Google SecOps), query the SIEM instead of integrating the product. Platform by platform
+setup, permissions and limits are in [SIEM_INTEGRATION.md](SIEM_INTEGRATION.md); any other SIEM connects with
+the `http_json` adapter, a signed webhook or a file drop. You get one credential, one network path and one permission for many
 domains. Ready-made queries for EDR, identity, SOC, e-mail, cloud, firewall, WAF and web proxy are
 in [`config/templates/catalog.yaml`](../config/templates/catalog.yaml), and `lodestar init` uses them.
 
 ```yaml
 connectors:
   edr:
-    adapter: sentinel                  # or: splunk (settings: base_url, token, search, ca_bundle)
+    adapter: sentinel                  # or splunk | qradar | elastic | sumologic | google_secops | http_json
     product: Defender for Endpoint via Sentinel
     settings:
       workspace_id: ${SENTINEL_WORKSPACE_ID}   # app needs "Log Analytics Reader" on the workspace

@@ -160,6 +160,8 @@ See [QUICKSTART.md](QUICKSTART.md) and [PRODUCTION.md](PRODUCTION.md).
 | O-21 | Lifecycle MTTR needs history | The first weeks show vendor KPIs or "not measured" | Automatic once at least 3 items have closed |
 | O-22 | Threat hunt covers IP, domain and hash indicators | URL-path and JA3 indicators are not hunted | Extend the templates as feeds require |
 | O-23 | Webhook timestamps are optional by default | Senders that only sign the body can be replayed within retention (upsert is idempotent) | Turn on `webhook_require_timestamp` once all senders are updated |
+| O-24 | No threat-intel hunting in Sumo Logic or Google SecOps | Indicators are not searched in those SIEMs | Add hunt providers once field conventions are agreed per tenant |
+| O-25 | Google SecOps adapter is a preview | Regional endpoint and API version vary by tenant | Validate on a live tenant with `test-connector`, then mark native |
 
 **Independent second-pass review of v2.0 (findings fixed before release, each with a regression test)**
 
@@ -173,3 +175,20 @@ See [QUICKSTART.md](QUICKSTART.md) and [PRODUCTION.md](PRODUCTION.md).
 | PR-38 | Medium | Internet-facing criticals and attack paths read "0, within appetite" when nothing could measure them | Source and phase requirements per KRI |
 | PR-39 | Medium | IOC hunt missed MD5 / SHA-1 hits and `host:port` values | Indicator chosen by which hash matched; ports stripped when matching |
 | PR-40 | Low | Unknown JWT `kid` re-fetched JWKS on every request; webhook `?org=` not covered by a shared secret; escalation marked sent before delivery; simultaneous approvals could open two tickets; malformed JSON returned 500; `/readyz` listed organisation names | JWKS refetch at most once a minute; per-organisation webhook secret mandatory with several organisations; mark after delivery; lease lock around ticket creation; 400 on bad JSON; `/readyz` returns counts only |
+
+## 8. Review of v2.1: SIEM coverage and repository hygiene
+
+A review of the repository as published on GitHub (fresh clone, tests, links, workflows) with a focus on
+SIEM integration, the integration teams ask about first.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| PR-41 | High | The README listed QRadar as a supported SOC/SIEM source, but no QRadar adapter existed; only Sentinel and Splunk could be queried | Native `qradar` adapter (AQL search and open offenses) with contract tests; `docs/SIEM_INTEGRATION.md` states the support level of every platform |
+| PR-42 | High | Organisations on Elastic, OpenSearch / Wazuh, Sumo Logic or Google SecOps had no SIEM-first path, so a one-to-two-day start was not possible for them | Native `elastic` (ES\|QL and Query DSL), `sumologic` (Search Job API) and `google_secops` (UDM search, preview) adapters; `init --siem` templates for each |
+| PR-43 | Medium | SIEMs without an adapter (LogRhythm, Exabeam, Securonix, FortiSIEM, InsightIDR ...) could only use file drop or webhook | Generic `http_json` adapter: bearer / header / basic / OAuth2, placeholders, pagination, dotted record paths |
+| PR-44 | Medium | Threat-intel hunting only ran on Sentinel and Splunk | QRadar (AQL) and Elastic / OpenSearch (ECS Query DSL) hunt providers; results aggregated per host and user |
+| PR-45 | Low | No dedicated integration page; SIEM facts were spread across four documents | `docs/SIEM_INTEGRATION.md`: supported platforms, least privilege, setup, mapping, hunting, limits, troubleshooting; README "Supported SIEM platforms" table |
+| PR-46 | Low | Workflow actions referenced by moving tags; no Dependabot, code owners or changelog; the setup guide still said "47 tests" and did not cover protected branches | Actions pinned to commit SHAs with `persist-credentials: false` and timeouts; Dependabot (pip, actions grouped, Docker), CODEOWNERS, CHANGELOG; GITHUB_SETUP updated with the pull-request flow |
+
+Open items added: hunting in Sumo Logic and Google SecOps (O-24); Google SecOps out of preview after
+validation on a live tenant (O-25).

@@ -2,15 +2,20 @@
 # LODESTAR integration catalogue - ready-made connector settings per control domain.
 #
 # `lodestar init` copies from here into your config; you can also paste a block by hand.
-# Each domain offers up to four templates, in the order init prefers them:
-#   sentinel  - one KQL query against the Log Analytics workspace your SIEM already fills (read-only)
-#   splunk    - one SPL search against Splunk / Splunk ES (read-only)
-#   native    - a vendor API adapter shipped with LODESTAR
-#   file_drop - a scheduled CSV / JSON export dropped into a folder (works for anything)
+# Each domain offers templates, in the order init prefers them (the SIEM you chose first):
+#   sentinel      - one KQL query against the Log Analytics workspace your SIEM already fills (read-only)
+#   splunk        - one SPL search against Splunk / Splunk ES (read-only)
+#   qradar        - one AQL search, or the open-offense list, from IBM QRadar (read-only)
+#   elastic       - ES|QL or Query DSL against Elastic Security, OpenSearch or the Wazuh indexer (read-only)
+#   sumologic     - one Sumo Logic search job (read-only)
+#   google_secops - one UDM search against Google Security Operations (read-only, preview)
+#   native        - a vendor API adapter shipped with LODESTAR
+#   file_drop     - a scheduled CSV / JSON export dropped into a folder (works for anything)
+# Any other SIEM: the http_json adapter (REST + JSON) or a signed webhook - see docs/SIEM_INTEGRATION.md.
 #
 # These are STARTING POINTS. Table and column names differ between connectors and vendor versions:
 # run `lodestar test-connector <domain>` and adjust the query / field_map until the counts match the
-# console. {since} (ISO time) and {since_epoch} make a query incremental (cursor kept per source);
+# console. {since} (ISO time), {since_epoch} and {since_ms} make a query incremental (cursor kept per source);
 # without them the query must return the complete current set (snapshot).
 # ---------------------------------------------------------------------------
 
@@ -41,6 +46,31 @@ edr:
       | table _time DetectId DetectName SeverityName ComputerName UserName Tactic
     field_map: {finding_id: DetectId, title: DetectName, severity: SeverityName, asset_id: ComputerName,
                 user_id: UserName, first_seen: _time}
+  qradar:
+    product: EDR detections via QRadar
+    aql: |
+      SELECT starttime, QIDNAME(qid) AS detection, severity, sourceip, destinationip, username,
+             LOGSOURCENAME(logsourceid) AS logsource, CATEGORYNAME(category) AS category
+      FROM events
+      WHERE starttime > {since_ms} AND severity >= 7
+        AND (LOGSOURCETYPENAME(devicetype) ILIKE '%CrowdStrike%' OR LOGSOURCETYPENAME(devicetype) ILIKE '%Defender%'
+             OR LOGSOURCETYPENAME(devicetype) ILIKE '%SentinelOne%')
+      LAST {lookback_days} DAYS
+    field_map: {title: detection, severity: severity, asset_id: sourceip, user_id: username, first_seen: starttime}
+    evidence_fields: [logsource, category]
+    permission: authorised service token for a role that can search events
+  elastic:
+    product: Elastic Defend / endpoint alerts in Elastic Security
+    index: ".alerts-security.alerts-*"
+    dsl: {bool: {filter: [{range: {"@timestamp": {gte: "{since}"}}}, {term: {"event.module": endpoint}}]}}
+    field_map: {finding_id: kibana.alert.uuid, title: kibana.alert.rule.name, severity: kibana.alert.severity,
+                asset_id: host.name, user_id: user.name, status: kibana.alert.workflow_status, first_seen: "@timestamp"}
+    status_map: {acknowledged: in_progress}
+  google_secops:
+    product: EDR detections via Google SecOps (UDM)
+    query: 'metadata.event_type = "PROCESS_LAUNCH" AND (security_result.severity = "HIGH" OR security_result.severity = "CRITICAL")'
+    field_map: {finding_id: metadata.id, title: securityResult.summary, severity: securityResult.severity,
+                asset_id: principal.hostname, user_id: principal.user.userid, first_seen: metadata.eventTimestamp}
   native:
     adapter: ms_graph_security
     product: Microsoft Defender for Endpoint
@@ -96,6 +126,34 @@ soc:
     field_map: {finding_id: event_id, title: rule_name, severity: urgency, asset_id: dest, user_id: user,
                 status: status_label, first_seen: _time}
     finding_type: incident
+  qradar:
+    product: IBM QRadar offenses
+    mode: offenses
+    offense_filter: status="OPEN"
+    offense_fields: id,description,magnitude,severity,status,offense_source,offense_type,start_time,last_updated_time,assigned_to
+    field_map: {finding_id: id, title: description, severity: magnitude, asset_id: offense_source, status: status,
+                first_seen: start_time, last_seen: last_updated_time}
+    finding_type: incident
+    note: magnitude 1-10 maps 9+ critical, 7+ high, 4+ medium; closed offenses drop out of the open list and resolve
+  elastic:
+    product: Elastic Security alerts (open and acknowledged)
+    index: ".alerts-security.alerts-*"
+    dsl: {bool: {filter: [{range: {"@timestamp": {gte: "now-{lookback_days}d"}}},
+                          {terms: {kibana.alert.workflow_status: [open, acknowledged]}}]}}
+    field_map: {finding_id: kibana.alert.uuid, title: kibana.alert.rule.name, severity: kibana.alert.severity,
+                asset_id: host.name, user_id: user.name, status: kibana.alert.workflow_status, first_seen: "@timestamp"}
+    status_map: {acknowledged: in_progress}
+    finding_type: incident
+    note: >-
+      snapshot - an alert that is closed in Kibana drops out and is resolved here. For Wazuh use index wazuh-alerts-*,
+      a dsl range on rule.level (gte 10) and field_map title rule.description, severity rule.level, asset_id agent.name
+  sumologic:
+    product: Sumo Logic Cloud SIEM signals
+    query: '_index=sec_signal | fields name, severity, entity, ruleId, timestamp'
+    results: messages
+    field_map: {title: name, severity: severity, asset_id: entity, first_seen: timestamp}
+    evidence_fields: [ruleId]
+    note: Cloud SIEM partitions and field names vary by tenant - confirm in Sumo Logic search first
 
 email:
   title: Email security
@@ -181,6 +239,40 @@ firewall:
       | extend Id = hash_sha256(strcat(Activity, SourceIP, DestinationIP)), Sev = "high"
     field_map: {finding_id: Id, title: Activity, severity: Sev, asset_id: DestinationIP, first_seen: FirstSeen, last_seen: LastSeen}
     cursor_column: LastSeen
+  splunk:
+    product: NGFW / IPS threats via Splunk (CIM Intrusion Detection)
+    search: |
+      search index=* tag=ids tag=attack _time>{since_epoch}
+      | stats min(_time) as first_seen max(_time) as last_seen count as hits max(severity) as severity by signature dest
+    field_map: {title: signature, severity: severity, asset_id: dest, first_seen: first_seen, last_seen: last_seen}
+  qradar:
+    product: NGFW threat events via QRadar
+    aql: |
+      SELECT MIN(starttime) AS first_seen, MAX(starttime) AS last_seen, QIDNAME(qid) AS threat, sourceip, destinationip,
+             MAX(severity) AS sev, COUNT(*) AS hits
+      FROM events
+      WHERE starttime > {since_ms} AND severity >= 8 AND CATEGORYNAME(category) NOT ILIKE '%Firewall Permit%'
+      GROUP BY qid, sourceip, destinationip
+      LAST {lookback_days} DAYS
+    field_map: {title: threat, severity: sev, asset_id: destinationip, first_seen: first_seen, last_seen: last_seen}
+    cursor_column: last_seen
+  elastic:
+    product: NGFW threat events via Elastic (ECS)
+    esql: |
+      FROM logs-*
+      | WHERE @timestamp > "{since}" AND event.category == "intrusion_detection"
+      | STATS first_seen = MIN(@timestamp), last_seen = MAX(@timestamp), hits = COUNT(*)
+          BY rule.name, destination.ip, observer.vendor
+      | LIMIT 5000
+    field_map: {title: rule.name, asset_id: destination.ip, first_seen: first_seen, last_seen: last_seen}
+    cursor_column: last_seen
+    note: there is no severity column - set severity_map or add one with EVAL
+  sumologic:
+    product: NGFW threat events via Sumo Logic
+    query: '_sourceCategory=*firewall* (threat OR intrusion) | count as hits, min(_messagetime) as first_seen, max(_messagetime) as last_seen by threat_name, dest_ip'
+    results: records
+    field_map: {title: threat_name, asset_id: dest_ip, first_seen: first_seen, last_seen: last_seen}
+    note: field names depend on your parsers (FER / auto-parsing) - check them in a Sumo search first
 
 waf:
   title: Web application firewall
@@ -257,3 +349,11 @@ _generic:
   file_drop:
     field_map: {finding_id: id, title: title, severity: severity, asset_id: asset, user_id: user, first_seen: first_seen}
   webhook: {}
+  http_json:
+    product: Any SIEM or tool with a REST/JSON read API (LogRhythm, Exabeam, Securonix, FortiSIEM, InsightIDR ...)
+    url: https://siem.example/api/v1/alerts
+    params: {status: open, since: "{since}"}
+    auth: {type: bearer, token: "${SIEM_API_TOKEN}"}
+    records: data
+    paginate: {type: next_field, path: links.next}
+    field_map: {finding_id: id, title: name, severity: severity, asset_id: host, user_id: user, first_seen: created}

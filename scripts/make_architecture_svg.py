@@ -27,7 +27,7 @@ SOURCES = [
     ("Business risk", ["Fraud engine", "Brand / DRP", "AI security", "DLP"]),
 ]
 EXTERNAL = ["HackerOne bug bounty", "CERT / ISAC (TAXII)", "MISP", "PSIRT / CISA CSAF", "Advisory mailbox"]
-PATHS = ["SIEM-first query · Sentinel / Splunk", "Native API", "File drop · CSV / JSON", "Signed webhook", "Feeds & mailbox"]
+PATHS = ["SIEM-first query · 6 SIEMs", "Native API · REST / JSON", "File drop · CSV / JSON", "Signed webhook", "Feeds & mailbox"]
 ROW1 = [("1", "Asset & identity", "CMDB, crown jewels,|people directory"), ("2", "Threat hunt", "intel IOCs searched|in SIEM telemetry"),
         ("3", "Data quality", "entity resolution,|de-duplication"), ("4", "Lifecycle", "first seen, resolve,|carry forward"),
         ("5", "Threat intel", "KEV, EPSS,|relevance filter"), ("6", "Control assurance", "coverage, freshness,|policy drift")]
