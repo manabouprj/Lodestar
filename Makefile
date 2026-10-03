@@ -7,4 +7,4 @@ serve:    ; python -m lodestar serve
 validate: ; python -m lodestar validate
 doctor:   ; python -m lodestar doctor
 lock:     ; python scripts/lock.py
-docker:   ; docker build -t lodestar:2.2.3 .
+docker:   ; docker build -t lodestar:2.3.0 .

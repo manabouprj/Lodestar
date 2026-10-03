@@ -370,7 +370,7 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 2.2.3 is production-ready for a single node serving one or many organisations. It includes:
+Version 2.3.0 is production-ready for a single node serving one or many organisations. It includes:
 
 * per-source ingestion cadence, an ingestion sanity test, and continuous ingestion validation with alerts;
 * a read-only MCP server for AI assistants, and an adapter for vendor MCP servers;
@@ -394,6 +394,15 @@ Planned next:
 * a full Teams bot with card actions.
 
 Open items are tracked in [docs/PEER_REVIEW.md](docs/PEER_REVIEW.md). Changes per release are in [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+LODESTAR is licensed under the [Apache License 2.0](LICENSE). You may use, modify and run it,
+including commercially and in production, provided you keep the copyright and [NOTICE](NOTICE),
+state significant changes, and include the licence when you redistribute it. It comes **without
+warranty**: you are responsible for validating it in your environment (see
+[PEER_REVIEW.md](docs/PEER_REVIEW.md) for open items). Contributions are accepted under the same
+licence (Apache-2.0, section 5).
 
 All demo organisations, people, hosts and `*.example` domains are fictional. CVE identifiers are
 real public CVEs used for illustration.
