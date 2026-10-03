@@ -1,6 +1,6 @@
 # Agent catalogue
 
-Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 36 agents: 15 core (including the orchestrator), 21 connector.
+Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 37 agents: 16 core (including the orchestrator), 21 connector.
 
 ## Core agents
 
@@ -9,8 +9,9 @@ Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 36 agents: 1
 | 0 | **Orchestrator** | Builds the phase-appropriate pipeline, runs agents with failure isolation, persists results and audit. |
 | 0 | **AssetContextAgent** | Loads CMDB / crown-jewel register and enriches findings with business context. |
 | 0 | **DataQualityAgent** | Deduplicates, validates and scores the trustworthiness of incoming data; resolves hosts, IPs, MACs, device ids and user spellings to one asset / identity. |
+| 0 | **IngestionMonitorAgent** | Continuously validates every ingestion source, every run: consecutive failures, staleness and silence, volume anomalies against a baseline, schema drift and mapping quality. Raises a self-resolving coverage-gap finding and an alert for failing, stale or volume-drop sources (see [INGESTION_OPERATIONS.md](INGESTION_OPERATIONS.md)). |
 | 0 | **LifecycleAgent** | Tracks findings across runs: sticky first-seen, carry-forward when a source fails, resolution rules per sync mode (snapshot: not seen in N full pulls; incremental: closed by the source or expired). |
-| 1 | **ThreatHuntAgent** | Hunts recent threat-intel indicators across SIEM telemetry (Sentinel KQL / Splunk SPL); every sighting becomes a SOC detection and marks the advisory as sighted. |
+| 1 | **ThreatHuntAgent** | Hunts recent threat-intel indicators across SIEM telemetry (Sentinel KQL, Splunk SPL, QRadar AQL, Elastic / OpenSearch ECS fields); every sighting becomes a SOC detection and marks the advisory as sighted. |
 | 1 | **ThreatIntelAgent** | Enriches vulnerabilities with CISA KEV, FIRST EPSS and in-environment exploitation evidence. |
 | 1 | **ControlAssuranceAgent** | Measures coverage, freshness and drift of every integrated security control. |
 | 1 | **PrioritizationAgent** | Scores and ranks every finding into Today / This week / This month / Backlog. |
@@ -22,11 +23,12 @@ Generated from `lodestar/catalog.py` (`python -m lodestar agents`). 36 agents: 1
 | 3 | **ComplianceMappingAgent** | Maps findings to NIST CSF 2.0, ISO 27001 and PCI DSS controls; flags at-risk controls. |
 | 4 | **NarrativeAgent** | Business-language executive summaries; template engine by default, optional LLM with numeric grounding guardrail. |
 
-Pipeline order: AssetContext → connectors → ThreatHunt (optional) → DataQuality (entity resolution, dedupe, CVE/IOC keys) → Lifecycle → ThreatIntel (KEV/EPSS + relevance filter for external intel) → ControlAssurance → Correlation → Prioritization → ComplianceMapping → Action → Decision. Reporting, Narrative and ChatOps run on demand / on schedule.
+Pipeline order: AssetContext → connectors (each source on its own cadence) → ThreatHunt (optional) → DataQuality (entity resolution, dedupe, CVE/IOC keys) → IngestionMonitor → Lifecycle → ThreatIntel (KEV/EPSS + relevance filter for external intel) → ControlAssurance → Correlation → Prioritization → ComplianceMapping → Action → Decision. Reporting, Narrative and ChatOps run on demand / on schedule.
 
 ## Connector agents
 
 Every connector agent is product-agnostic; adapters decide how data is fetched (several sources per agent are allowed). All adapters are read-only.
+Every connector agent can also read its domain from the SIEM: `sentinel`, `splunk`, `qradar`, `elastic`, `sumologic` and `google_secops` (see [SIEM_INTEGRATION.md](SIEM_INTEGRATION.md)), from any REST API (`http_json`), or from a vendor MCP server (`mcp`, see [MCP.md](MCP.md)).
 
 ### EndpointSentinelAgent - Endpoint Detection & Response (phase 1)
 
@@ -35,7 +37,7 @@ Detections, sensor coverage and health across servers and workstations.
 * **Typical products / sources:** CrowdStrike Falcon, Microsoft Defender for Endpoint, SentinelOne, Trend Vision One
 * **KPIs reported:** coverage_pct, sensors_stale, detections_open, prevention_policy_pct
 * **Least privilege:** Read-only API client: Alerts:read, Hosts:read
-* **Adapters available:** ms_graph_security, file_drop, webhook
+* **Adapters available:** ms_graph_security, file_drop, webhook, http_json
 
 ### IdentityGuardAgent - Identity (IdP / Directory / ITDR) (phase 1)
 
@@ -44,7 +46,7 @@ Risky users and sign-ins, MFA coverage, stale and over-privileged accounts.
 * **Typical products / sources:** Microsoft Entra ID, Okta, Ping Identity, Microsoft Defender for Identity
 * **KPIs reported:** mfa_coverage_pct, risky_users, stale_accounts, legacy_auth_signins
 * **Least privilege:** IdentityRiskyUser.Read.All, AuditLog.Read.All, Directory.Read.All (application, read-only)
-* **Adapters available:** ms_graph_security, entra_identity_protection, file_drop, webhook
+* **Adapters available:** ms_graph_security, entra_identity_protection, file_drop, webhook, http_json
 
 ### MailShieldAgent - Email Security (phase 1)
 
@@ -53,7 +55,7 @@ Phishing/BEC detections, user clicks, DMARC posture and simulation results.
 * **Typical products / sources:** Microsoft Defender for Office 365, Mimecast, Proofpoint, Cisco Secure Email
 * **KPIs reported:** phish_blocked, user_clicks, dmarc_enforced_pct, phishing_click_rate_pct
 * **Least privilege:** Read-only reporting API role
-* **Adapters available:** ms_graph_security, file_drop, webhook
+* **Adapters available:** ms_graph_security, file_drop, webhook, http_json
 
 ### SocPulseAgent - SOC / SIEM / SOAR (phase 1)
 
@@ -62,7 +64,7 @@ Open incidents, MTTD/MTTR, log-source health and detection coverage (MITRE ATT&C
 * **Typical products / sources:** Microsoft Sentinel, Splunk ES, Google SecOps, IBM QRadar, Elastic
 * **KPIs reported:** incidents_open, mttd_hours, mttr_hours, log_sources_silent, attack_coverage_pct
 * **Least privilege:** Read-only incident and saved-search role
-* **Adapters available:** ms_graph_security, file_drop, webhook
+* **Adapters available:** ms_graph_security, file_drop, webhook, http_json
 
 ### ThreatFeedAgent - Threat Intelligence Feeds & Advisories (phase 1)
 
@@ -71,7 +73,7 @@ Ingests STIX/TAXII and MISP feeds, CSAF / ICS advisories and advisory e-mails fr
 * **Typical products / sources:** National CERT / NCSC TAXII, Sector ISAC (FS-ISAC, E-ISAC), MISP communities, CISA ICS advisories (CSAF), Vendor PSIRT advisories, Commercial TI (Recorded Future, Mandiant, Group-IB)
 * **KPIs reported:** feeds_active, feeds_stale, advisories_relevant_7d, iocs_ingested_7d, ioc_sightings_7d, sector_targeted_cves_open, intel_to_action_hours
 * **Least privilege:** Read-only TAXII/MISP API keys; read-only mailbox (Mail.Read scoped to one mailbox or IMAP over TLS)
-* **Adapters available:** taxii, misp, csaf, mailbox, file_drop, webhook
+* **Adapters available:** taxii, misp, csaf, mailbox, file_drop, webhook, http_json
 
 ### VulnIntelAgent - Vulnerability Management (VMDR) (phase 1)
 
@@ -80,7 +82,7 @@ Vulnerabilities with CVE/KEV/EPSS context, scan coverage and remediation SLAs.
 * **Typical products / sources:** Qualys VMDR, Tenable Vulnerability Management, Rapid7 InsightVM, Microsoft Defender VM
 * **KPIs reported:** scan_coverage_pct, critical_open, kev_open, mttr_critical_days
 * **Least privilege:** Read-only scanner account / API key with reporting scope only
-* **Adapters available:** tenable_vm, file_drop, webhook
+* **Adapters available:** tenable_vm, file_drop, webhook, http_json
 
 ### AppShieldAgent - Web Application Firewall / WAAP (phase 2)
 
@@ -89,7 +91,7 @@ Attack traffic, apps in detect-only mode, unprotected public apps, virtual patch
 * **Typical products / sources:** Cloudflare, Akamai, F5 Advanced WAF, Imperva, Azure Front Door WAF
 * **KPIs reported:** apps_protected_pct, block_mode_pct, attacks_blocked, virtual_patches
 * **Least privilege:** Read-only API token (zone/analytics read)
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### BugBountyAgent - Bug Bounty & Vulnerability Disclosure (phase 2)
 
@@ -98,7 +100,7 @@ Researcher reports from HackerOne (API + signed webhooks) or a VDP mailbox: seve
 * **Typical products / sources:** HackerOne, Bugcrowd, Intigriti, YesWeHack, security@ / VDP mailbox
 * **KPIs reported:** reports_open, triaged_awaiting_fix, critical_open, mean_time_to_triage_hours, sla_breaches, bounties_pending_decision, in_scope_internet_assets_pct
 * **Least privilege:** HackerOne API token with read-only program access (Report: read); webhook secret
-* **Adapters available:** hackerone, mailbox, file_drop, webhook
+* **Adapters available:** hackerone, mailbox, file_drop, webhook, http_json
 
 ### CloudPostureAgent - Cloud Security (CSPM / CNAPP) (phase 2)
 
@@ -107,7 +109,7 @@ Misconfigurations, toxic cloud combinations, workload vulns, identity sprawl.
 * **Typical products / sources:** Wiz, Microsoft Defender for Cloud, Prisma Cloud, AWS Security Hub, Orca
 * **KPIs reported:** critical_misconfigs, public_buckets, accounts_covered_pct, secure_score
 * **Least privilege:** Read-only security reader role per cloud account
-* **Adapters available:** ms_graph_security, file_drop, webhook
+* **Adapters available:** ms_graph_security, file_drop, webhook, http_json
 
 ### FraudSentinelAgent - Fraud Management & Transaction Monitoring (phase 2)
 
@@ -116,7 +118,7 @@ Account takeover, mule networks, authorised-push-payment scams, card fraud and f
 * **Typical products / sources:** Feedzai, NICE Actimize, SAS Fraud Management, FICO Falcon, BioCatch, LexisNexis ThreatMetrix, Featurespace
 * **KPIs reported:** channel_coverage_pct, alert_backlog_hours, confirmed_loss_30d, prevented_30d, detection_rate_pct, false_positive_pct, ato_attempts_7d, mule_accounts_detected
 * **Least privilege:** Read-only case/alert reporting API or analytics export (no case-management write access)
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### PerimeterAgent - Next-Gen Firewall (phase 2)
 
@@ -125,7 +127,7 @@ Policy hygiene (any-any, shadowed, unused rules), threat events, firmware curren
 * **Typical products / sources:** Palo Alto Networks, Fortinet FortiGate, Check Point, Cisco Secure Firewall
 * **KPIs reported:** risky_rules, unused_rules, threat_events_blocked, firmware_outdated
 * **Least privilege:** Read-only admin profile / API key
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### PrivilegeVaultAgent - Privileged Access Management (phase 2)
 
@@ -134,7 +136,7 @@ Vaulted vs unvaulted privileged accounts, session recording, standing privileges
 * **Typical products / sources:** CyberArk, BeyondTrust, Delinea, Microsoft Entra PIM
 * **KPIs reported:** vaulted_pct, standing_admins, sessions_unrecorded, rotation_failures
 * **Least privilege:** Read-only auditor role
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### WebGatewayAgent - Secure Web Gateway / Proxy (phase 2)
 
@@ -143,7 +145,7 @@ Malicious and uncategorised site access, shadow IT / shadow AI, TLS inspection c
 * **Typical products / sources:** Zscaler Internet Access, Netskope, Palo Alto Prisma Access, Cisco Umbrella
 * **KPIs reported:** tls_inspection_pct, malicious_blocked, shadow_ai_users, policy_bypass
 * **Least privilege:** Read-only admin / log streaming
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### ZeroTrustAccessAgent - Zero Trust Network Access (phase 2)
 
@@ -152,7 +154,7 @@ Private-app access posture, unmanaged device access, legacy VPN residue.
 * **Typical products / sources:** Zscaler Private Access, Cloudflare Access, Netskope Private Access, Palo Alto Prisma Access
 * **KPIs reported:** apps_behind_ztna_pct, unmanaged_device_sessions, legacy_vpn_users
 * **Least privilege:** Read-only admin / log streaming
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### AIGuardianAgent - AI Security & Governance (phase 3)
 
@@ -161,7 +163,7 @@ AI model/app inventory (AI-SPM), LLM guardrail events (prompt injection, data le
 * **Typical products / sources:** Microsoft Purview AI Hub, Prompt Security, Lakera Guard, Protect AI, Netskope AI, Zscaler AI
 * **KPIs reported:** ai_apps_inventoried, guardrail_blocks, prompt_injection_attempts, unsanctioned_ai_apps
 * **Least privilege:** Read-only API key
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### AppProbeAgent - Dynamic Application Security Testing (phase 3)
 
@@ -170,7 +172,7 @@ Runtime-confirmed web/API vulnerabilities on deployed applications.
 * **Typical products / sources:** Invicti, Burp Suite Enterprise, Rapid7 InsightAppSec, OWASP ZAP
 * **KPIs reported:** apps_tested_pct, confirmed_critical, api_coverage_pct
 * **Least privilege:** Read-only reporting token
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### BrandWatchAgent - Brand Protection / Digital Risk (phase 3)
 
@@ -179,7 +181,7 @@ Lookalike domains, phishing kits, fake apps/social profiles, leaked credentials.
 * **Typical products / sources:** Recorded Future, ZeroFox, Group-IB, CybelAngel, Netcraft
 * **KPIs reported:** lookalikes_active, takedowns_pending, brand_takedown_hours, leaked_credentials
 * **Least privilege:** Read-only API key
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### CodeGuardAgent - Static Application Security Testing (phase 3)
 
@@ -188,7 +190,7 @@ Code flaws, secrets in repos and vulnerable dependencies per application.
 * **Typical products / sources:** Checkmarx, Veracode, Snyk, SonarQube, GitHub Advanced Security
 * **KPIs reported:** repos_scanned_pct, critical_flaws, secrets_exposed, fix_rate_pct
 * **Least privilege:** Read-only reporting token
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### DataGuardAgent - Data Loss Prevention (phase 3)
 
@@ -197,7 +199,7 @@ Sensitive data movement to email, web, cloud and GenAI; policy coverage.
 * **Typical products / sources:** Microsoft Purview DLP, Forcepoint, Symantec DLP, Netskope DLP
 * **KPIs reported:** incidents_high, policy_coverage_pct, genai_uploads_blocked
 * **Least privilege:** Read-only DLP reporting role
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### OTWatchAgent - OT / ICS Security (phase 3)
 
@@ -206,7 +208,7 @@ OT asset visibility, unsafe protocols, vendor remote access, ICS-specific threat
 * **Typical products / sources:** Claroty, Nozomi Networks, Dragos, Microsoft Defender for IoT, TXOne
 * **KPIs reported:** ot_assets_visible_pct, unmanaged_remote_access, critical_ot_vulns, ics_alerts
 * **Least privilege:** Read-only API user on OT sensor/CMC (no write to OT networks)
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ### ResilienceAgent - Backup & Cyber Recovery (phase 3)
 
@@ -215,7 +217,7 @@ Immutable/air-gapped backup coverage for crown jewels, restore test results.
 * **Typical products / sources:** Rubrik, Cohesity, Veeam, Commvault
 * **KPIs reported:** immutable_pct, failed_jobs, restore_tests_passed_pct
 * **Least privilege:** Read-only reporting role
-* **Adapters available:** file_drop, webhook
+* **Adapters available:** file_drop, webhook, http_json
 
 ## Correlation rules (attack paths)
 

@@ -1,20 +1,23 @@
 # Connector guide
 
-> Step-by-step product setup (permissions, credentials, field maps, testing) is in [AGENT_SETUP.md](AGENT_SETUP.md). This page explains the three integration mechanisms and how to write a native adapter.
+> Step-by-step product setup (permissions, credentials, field maps, testing) is in [AGENT_SETUP.md](AGENT_SETUP.md). This page explains the integration mechanisms and how to write a native adapter. How often each source is pulled, the ingestion sanity test and continuous validation are in [INGESTION_OPERATIONS.md](INGESTION_OPERATIONS.md).
 
-There are four ways to bring a product into LODESTAR. Pick the lightest one that works.
+There are five ways to bring a product into LODESTAR. Pick the lightest one that works. A fifth, the
+`mcp` adapter for products that ship an MCP server, is described in [MCP.md](MCP.md#the-mcp-adapter-ingesting-from-a-vendors-mcp-server).
 
 ## 0. SIEM-first (one query per domain)
 
-If the product already forwards to Microsoft Sentinel or Splunk, query the SIEM instead of
-integrating the product. You get one credential, one network path and one permission for many
+If the product already forwards to your SIEM (Microsoft Sentinel, Splunk, IBM QRadar, Elastic / OpenSearch /
+Wazuh, Sumo Logic or Google SecOps), query the SIEM instead of integrating the product. Platform by platform
+setup, permissions and limits are in [SIEM_INTEGRATION.md](SIEM_INTEGRATION.md); any other SIEM connects with
+the `http_json` adapter, a signed webhook or a file drop. You get one credential, one network path and one permission for many
 domains. Ready-made queries for EDR, identity, SOC, e-mail, cloud, firewall, WAF and web proxy are
 in [`config/templates/catalog.yaml`](../config/templates/catalog.yaml), and `lodestar init` uses them.
 
 ```yaml
 connectors:
   edr:
-    adapter: sentinel                  # or: splunk (settings: base_url, token, search, ca_bundle)
+    adapter: sentinel                  # or splunk | qradar | elastic | sumologic | google_secops | http_json
     product: Defender for Endpoint via Sentinel
     settings:
       workspace_id: ${SENTINEL_WORKSPACE_ID}   # app needs "Log Analytics Reader" on the workspace
@@ -42,6 +45,13 @@ Sync modes:
   (**snapshot**). An item missing from two complete pulls is resolved.
 
 A failed query never resolves anything.
+
+Every connector and source also takes:
+
+```yaml
+    interval_minutes: 60            # cadence; omit to use the domain default under the scheduler
+    expect: {min_items: 1, max_silence_hours: 6}   # thresholds for check-ingestion and the monitor
+```
 
 ## 1. File drop (no code)
 
@@ -132,8 +142,10 @@ request and its response mapping against recorded responses, using `httpx.MockTr
 
 1. Run `python -m lodestar test-connector <domain> --show 20`.
 2. Compare the counts with the vendor console, and spot-check ten findings.
-3. Run `python -m lodestar run`, then `python -m lodestar doctor`, which shows each source's last
-   success or error.
+3. Run `python -m lodestar check-ingestion --domain <domain>`. Every check should PASS: schema,
+   mapping, CMDB match and freshness.
+4. Run `python -m lodestar run`, then `python -m lodestar doctor`, which shows each source's last
+   success or error and its ingestion state.
 
 Add a contract test for every new adapter. Record a real response with the secrets removed,
 replay it through `set_transport()`, and assert on the request (endpoint, filter, auth) and on

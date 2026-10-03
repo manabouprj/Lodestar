@@ -94,3 +94,67 @@ def escalate(result: PipelineResult, store, cfg: dict[str, Any], now: datetime) 
         except Exception as exc:
             out.append({"escalation_channel": ch, "ok": False, "error": str(exc)})
     return out
+
+
+def ingestion_alerts(result: PipelineResult, store, ingestion_cfg: dict[str, Any], cfg: dict[str, Any],
+                     now: datetime) -> list[dict[str, Any]]:
+    """Alert when an ingestion source enters an alerting state (failing / stale / volume_drop by default),
+    again every `repeat_hours` while it stays there, and once when it recovers. Goes to Slack / Teams
+    (ingestion.alerts.slack_channel overrides the Slack channel) and to an optional generic JSON webhook
+    (ingestion.alerts.webhook_url, e.g. an on-call tool's events endpoint). State lives in
+    connector_state.monitor, so an alert that could not be delivered is retried on the next run."""
+    from ..ingestion import ALERT_STATES
+    acfg = (ingestion_cfg or {}).get("alerts") or {}
+    if acfg.get("enabled", True) is False:
+        return []
+    states = set(acfg.get("states") or ALERT_STATES)
+    repeat = float(acfg.get("repeat_hours", 24))
+    org = result.org_name
+    recs = (result.data_quality.get("ingestion") or {}).get("sources") or {}
+    cs = store.all_connector_state(org)
+    fire, recovered = [], []
+    for key, rec in recs.items():
+        mon = (cs.get(key) or {}).get("monitor") or {}
+        alerted, at = mon.get("alerted"), mon.get("alerted_at")
+        if rec["state"] in states:
+            age = (now - datetime.fromisoformat(at)).total_seconds() / 3600 if at else None
+            if alerted != rec["state"] or (age is not None and age >= repeat):
+                fire.append((key, rec))
+        elif alerted in states and rec["state"] in ("healthy", "degraded", "volume_spike"):
+            recovered.append((key, rec))
+    if not fire and not recovered:
+        return []
+    lines = [f"• {k}: *{r['state'].upper()}* - {r['detail'] or 'see dashboard'}" for k, r in fire] + \
+            [f"• {k}: recovered ({r['state']})" for k, r in recovered]
+    title = (f"Ingestion: {len(fire)} source(s) need attention - {org}" if fire
+             else f"Ingestion recovered: {len(recovered)} source(s) - {org}")
+    reply = ChatReply(title, lines, [], cfg.get("dashboard_url"), "alert")
+    out: list[dict[str, Any]] = []
+    for ch in channels(cfg):
+        try:
+            if ch == "slack":
+                out.append({"channel": ch, **slack.post(reply, cfg["slack"], acfg.get("slack_channel"))})
+            else:
+                out.append({"channel": ch, **teams.post(reply, cfg["teams"])})
+        except Exception as exc:  # never break the pipeline because chat is down
+            out.append({"channel": ch, "ok": False, "error": str(exc)})
+    if acfg.get("webhook_url"):
+        import httpx
+        body = {"source": "lodestar", "org": org, "title": title,
+                "events": [{"source_key": k, "state": r["state"], "detail": r["detail"], "domain": r["domain"],
+                            "recovered": False} for k, r in fire] +
+                          [{"source_key": k, "state": r["state"], "domain": r["domain"], "recovered": True} for k, r in recovered]}
+        try:
+            resp = httpx.post(acfg["webhook_url"], json=body, timeout=20, trust_env=True)
+            out.append({"channel": "webhook", "ok": resp.status_code < 300, "status": resp.status_code})
+        except Exception as exc:
+            out.append({"channel": "webhook", "ok": False, "error": type(exc).__name__})
+    if out and any(r.get("ok", True) for r in out):
+        for key, rec in fire:
+            store.set_monitor_state(org, key, {**((cs.get(key) or {}).get("monitor") or {}), "state": rec["state"],
+                                               "alerted": rec["state"], "alerted_at": now.isoformat()})
+        for key, rec in recovered:
+            mon = {**((cs.get(key) or {}).get("monitor") or {}), "state": rec["state"]}
+            mon.pop("alerted", None), mon.pop("alerted_at", None)
+            store.set_monitor_state(org, key, mon)
+    return out

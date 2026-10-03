@@ -41,7 +41,25 @@ ops:
   max_run_age_hours: 12         # /readyz fails when the newest run is older
   backup_dir: data/backups      # nightly online backup (inside the data volume); empty = off
   backup_keep: 14
-  retention: {closed_findings_days: 400, webhook_days: 60, audit_days: 400, snapshot_days: 800}
+  retention: {closed_findings_days: 400, webhook_days: 60, audit_days: 400, snapshot_days: 800, source_runs_days: 30}
+
+# Ingestion operations - cadence, sanity test, continuous validation (docs/INGESTION_OPERATIONS.md)
+ingestion:
+  default_cadence: true         # scheduler fetches each source on its domain's cadence unless interval_minutes is set
+  expect:                       # deployment-wide expectations; override per connector / source with `expect:`
+    failing_after: 2            # consecutive failed fetches before a source is "failing" (alerted)
+    asset_match_pct: 50
+    max_unmapped_pct: 20
+  # finding_states: [failing, stale, volume_drop]     states that raise a COVERAGE_GAP finding
+  alerts:                       # Slack / Teams (chatops) and/or a generic JSON webhook (on-call tool)
+    enabled: true
+    repeat_hours: 24            # remind while a source stays failing / stale
+    # slack_channel: "#sec-data-pipeline"
+    # webhook_url: ${LODESTAR_INGESTION_ALERT_WEBHOOK_URL}
+
+# Model Context Protocol server for AI assistants and agents at /mcp/ (docs/MCP.md) - read-only, same auth as the API
+mcp:
+  enabled: true
 
 storage:
   sqlite_path: data/lodestar.db
@@ -84,7 +102,7 @@ identity:
 # IOC hunting: indicators from your intel feeds are searched in SIEM telemetry every run (read-only)
 threat_hunt:
   enabled: false
-  provider: sentinel            # sentinel | splunk
+  provider: sentinel            # sentinel | splunk | qradar | elastic (docs/SIEM_INTEGRATION.md)
   lookback_hours: 24
   max_iocs: 500
   ioc_max_age_days: 30

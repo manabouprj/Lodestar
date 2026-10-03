@@ -1,4 +1,5 @@
-# Direct dependencies (loose). Pinned, reproducible set: requirements.txt  (regenerate: make lock)
+# Direct dependencies (loose). Pinned, reproducible set: requirements.txt  (regenerate: make lock = python scripts/lock.py,
+# which keeps Linux-only pins such as uvloop out of Windows installs)
 fastapi>=0.110,<1.0
 uvicorn[standard]>=0.29
 pydantic>=2.6,<3
@@ -7,3 +8,4 @@ jinja2>=3.1
 httpx>=0.27
 python-multipart>=0.0.9
 pyjwt[crypto]>=2.8
+mcp>=2.2,<3            # Model Context Protocol: LODESTAR MCP server (/mcp/, lodestar mcp) and the mcp adapter

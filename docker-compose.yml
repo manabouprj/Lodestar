@@ -3,7 +3,7 @@
 services:
   api:
     build: .
-    image: lodestar:2.0.0
+    image: lodestar:2.2.3
     env_file: .env
     environment:
       LODESTAR_CONFIG: /app/config/lodestar.yaml
@@ -20,12 +20,12 @@ services:
     restart: unless-stopped
 
   scheduler:
-    image: lodestar:2.0.0
+    image: lodestar:2.2.3
     depends_on: [api]
     env_file: .env
     environment:
       LODESTAR_CONFIG: /app/config/lodestar.yaml
-    command: ["python", "-m", "lodestar", "schedule", "--interval-hours", "4"]
+    command: ["python", "-m", "lodestar", "schedule", "--tick-minutes", "15"]
     volumes:
       - lodestar-data:/app/data
       - lodestar-reports:/app/reports

@@ -10,6 +10,7 @@ from .agents.core import (
     CorrelationAgent,
     DataQualityAgent,
     DecisionAgent,
+    IngestionMonitorAgent,
     LifecycleAgent,
     PrioritizationAgent,
     ThreatHuntAgent,
@@ -27,12 +28,16 @@ ORCH = {"name": "Orchestrator", "phase": 0, "kind": "core",
         "description": "Builds the phase-appropriate pipeline, runs agents with failure isolation, persists results and audit."}
 
 
+SIEM_ADAPTERS = ("sentinel", "splunk", "qradar", "elastic", "sumologic", "google_secops")   # usable by every connector
+
+
 def agent_catalog() -> list[dict]:
     core = [ORCH] + [{"name": a.name, "phase": a.phase, "kind": "core", "description": a.description} for a in (
-        AssetContextAgent, DataQualityAgent, LifecycleAgent, ThreatHuntAgent, ThreatIntelAgent, ControlAssuranceAgent, PrioritizationAgent,
+        AssetContextAgent, DataQualityAgent, IngestionMonitorAgent, LifecycleAgent, ThreatHuntAgent, ThreatIntelAgent, ControlAssuranceAgent, PrioritizationAgent,
         CorrelationAgent, ActionAgent, DecisionAgent, ComplianceMappingAgent)] + [REPORTING, NARRATIVE, CHATOPS]
     conn = [{"name": s.agent_name, "phase": s.phase, "kind": "connector", "domain": s.domain.value, "title": s.title,
              "description": s.purpose, "products": list(s.typical_products), "kpis": list(s.kpis),
-             "least_privilege": s.least_privilege, "live_adapters": list(s.live_adapters) + ["file_drop", "webhook"]}
+             "least_privilege": s.least_privilege, "live_adapters": list(s.live_adapters) + ["file_drop", "webhook", "http_json", "mcp"],
+             "siem_adapters": list(SIEM_ADAPTERS)}
             for s in SPECS.values()]
     return sorted(core, key=lambda a: a["phase"]) + sorted(conn, key=lambda a: (a["phase"], a["name"]))

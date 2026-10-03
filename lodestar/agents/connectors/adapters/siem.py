@@ -1,7 +1,8 @@
 """SIEM-first adapters: pull ANY control domain from the SIEM you already feed.
 
-Most enterprises already forward EDR, identity, e-mail, firewall, proxy, WAF and cloud alerts to
-Microsoft Sentinel or Splunk. Querying the SIEM turns ~20 product integrations into 1-2, which
+Most enterprises already forward EDR, identity, e-mail, firewall, proxy, WAF and cloud alerts to a SIEM
+(Microsoft Sentinel, Splunk, IBM QRadar, Elastic / OpenSearch, Sumo Logic, Google SecOps - see
+docs/SIEM_INTEGRATION.md). This module holds Sentinel, Splunk and the helpers the other SIEM adapters share. Querying the SIEM turns ~20 product integrations into 1-2, which
 is what makes a 1-2 day onboarding realistic. Each connector domain gets its own query and a
 field_map (same mapping engine as file_drop). Ready-made queries: config/templates/catalog.yaml.
 
@@ -130,6 +131,44 @@ class SplunkSearchAdapter(Adapter):
                                data_freshness_hours=0.0, kpis={**static.get("kpis", {}), **kpis},
                                health_issues=[] if cov is not None else ["Coverage not reported - add a health_search or health.coverage_pct"])
         return AdapterResult(findings=findings, health=health, warnings=warnings + [f"{len(rows)} results from Splunk"], cursor=cursor)
+
+
+def flatten(obj: Any, prefix: str = "", out: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Nested JSON (Elastic _source, Google UDM, QRadar offenses) -> dotted keys, so a field_map can say
+    `title: kibana.alert.rule.name`. A list of scalars keeps its first value under the key and the whole
+    list under `key[]`; a list of objects is flattened from its first element."""
+    out = {} if out is None else out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            flatten(v, f"{prefix}.{k}" if prefix else str(k), out)
+    elif isinstance(obj, list):
+        if obj and isinstance(obj[0], dict):
+            flatten(obj[0], prefix, out)
+        else:
+            out[f"{prefix}[]"] = obj
+            out[prefix] = obj[0] if obj else None
+    else:
+        out[prefix] = obj
+    return out
+
+
+def siem_result(adapter: Adapter, rows: list[dict[str, Any]], health_row: dict[str, Any] | None, cursor: str | None,
+                label: str) -> AdapterResult:
+    """Common tail of every SIEM adapter: field-map the rows, attach KPIs from the optional health query."""
+    findings, warnings = map_rows(rows, domain=adapter.domain, product=adapter.product, settings=adapter.settings)
+    hr = {k: _num(v) for k, v in (health_row or {}).items()}
+    cov, kpis = _kpis_from_row(hr if health_row else None)
+    static = adapter.settings.get("health") or {}
+    cov = cov if cov is not None else static.get("coverage_pct")
+    health = ControlHealth(domain=adapter.domain, product=adapter.product, coverage_pct=float(cov if cov is not None else 100.0),
+                           data_freshness_hours=0.0, kpis={**static.get("kpis", {}), **kpis},
+                           health_issues=[] if cov is not None else ["Coverage not reported - add a health query or health.coverage_pct"])
+    return AdapterResult(findings=findings, health=health, warnings=warnings + [f"{len(rows)} rows from {label}"], cursor=cursor)
+
+
+def newest(rows: list[dict[str, Any]], column: str) -> datetime | None:
+    times = [t for t in (parse_dt(r.get(column)) for r in rows) if t is not None]
+    return max(times) if times else None
 
 
 def _epoch(v) -> float | None:

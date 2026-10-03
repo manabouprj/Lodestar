@@ -6,13 +6,20 @@ This agent takes the recent indicators LODESTAR already holds and asks the SIEM 
 detection finding (source key "hunt") that carries the indicator, so the ThreatIntelAgent can
 mark the advisory as SIGHTED and the CorrelationAgent can join it to the asset / identity.
 
-Read-only: it runs ONE query per run against Sentinel (Log Analytics Reader) or Splunk (search role).
+Read-only: it runs ONE query per run against Sentinel (Log Analytics Reader), Splunk (search role),
+IBM QRadar (AQL search) or Elastic / OpenSearch (read on the indices).
 Config:
   threat_hunt:
     enabled: true
-    provider: sentinel            # or splunk
+    provider: sentinel            # sentinel | splunk | qradar | elastic
     settings: {workspace_id: ${SENTINEL_WORKSPACE_ID}, tenant_id: ..., client_id: ..., client_secret: ...}
-                                  # splunk: {base_url, token, ca_bundle, scope: "index=*"}
+                                  # splunk:  {base_url, token, ca_bundle, scope: "index=*"}
+                                  # qradar:  {base_url, token, ca_bundle, domain_property: "URL", hash_property: "SHA256 Hash"}
+                                  #          (IPs use sourceip/destinationip; domains and hashes need the custom
+                                  #           properties your DSMs extract - leave out what you do not have)
+                                  # elastic: {base_url, api_key | username+password, index: "logs-*", ca_bundle}
+                                  #          (ECS fields: source/destination.ip, dns.question.name, url.domain,
+                                  #           destination.domain, file.hash.*, process.hash.*)
     lookback_hours: 24
     max_iocs: 500                 # newest first
     ioc_max_age_days: 30          # ignore older indicators
@@ -66,6 +73,41 @@ SPL_TEMPLATE = """search {scope} earliest=-{hours}h ({terms})
         by host, user, sourcetype
 | rename host as Host, user as User, sourcetype as Source
 | head 1000"""
+
+
+ECS_IP = ("source.ip", "destination.ip")
+ECS_DOMAIN = ("dns.question.name", "url.domain", "destination.domain")
+ECS_HASH = ("file.hash.sha256", "file.hash.sha1", "file.hash.md5", "process.hash.sha256", "process.hash.md5")
+
+
+def _aql_quote(v: str) -> str:
+    return "'" + v.replace("\\", "").replace("'", "") + "'"
+
+
+def _aggregate(hits: list[dict[str, Any]], indicator_fields: tuple[str, ...], host_fields: tuple[str, ...],
+               user_fields: tuple[str, ...], time_field: str, source_field: str) -> list[dict[str, Any]]:
+    """Raw matching events -> hunt rows (Host, User, Indicator[], Source, FirstSeen, LastSeen, Hits)."""
+    from ..connectors.adapters.file_drop import parse_dt
+    rows: dict[tuple, dict[str, Any]] = {}
+    for h in hits:
+        host = next((str(h[f]) for f in host_fields if h.get(f)), "")
+        user = next((str(h[f]) for f in user_fields if h.get(f)), "")
+        src = str(h.get(source_field) or "")
+        vals = sorted({str(h[f]).lower() for f in indicator_fields if h.get(f) not in (None, "")})
+        t = parse_dt(h.get(time_field))
+        r = rows.setdefault((host, user, src), {"Host": host, "User": user, "Source": src, "Indicator": set(),
+                                                "FirstSeen": t, "LastSeen": t, "Hits": 0})
+        r["Indicator"].update(vals)
+        r["Hits"] += 1
+        if t:
+            r["FirstSeen"] = min(x for x in (r["FirstSeen"], t) if x)
+            r["LastSeen"] = max(x for x in (r["LastSeen"], t) if x)
+    out = []
+    for r in rows.values():
+        out.append({**r, "Indicator": sorted(r["Indicator"]),
+                    "FirstSeen": r["FirstSeen"].isoformat() if r["FirstSeen"] else None,
+                    "LastSeen": r["LastSeen"].isoformat() if r["LastSeen"] else None})
+    return out
 
 
 def classify(ioc: str) -> str | None:
@@ -152,6 +194,33 @@ class ThreatHuntAgent(BaseAgent):
         return (template or SPL_TEMPLATE).replace("{scope}", scope).replace("{hours}", str(int(hours))) \
             .replace("{terms}", " OR ".join(terms) or "NOT *")
 
+    @staticmethod
+    def build_aql(iocs: dict[str, dict], hours: int, domain_property: str | None = None,
+                  hash_property: str | None = None, template: str | None = None) -> str:
+        ips = [_aql_quote(i) for i, m in iocs.items() if m["kind"] == "ip"]
+        doms = [_aql_quote(i) for i, m in iocs.items() if m["kind"] == "domain"]
+        hashes = [_aql_quote(i) for i, m in iocs.items() if m["kind"] == "hash"]
+        terms = [f"sourceip = {v}" for v in ips] + [f"destinationip = {v}" for v in ips]
+        if domain_property:
+            terms += [f'"{domain_property}" = {v}' for v in doms]
+        if hash_property:
+            terms += [f'LOWER("{hash_property}") = {v}' for v in hashes]
+        extra = (f', "{domain_property}" AS domain_value' if domain_property else "") + \
+                (f', "{hash_property}" AS hash_value' if hash_property else "")
+        base = template or ("SELECT starttime, sourceip, destinationip, username, LOGSOURCENAME(logsourceid) AS logsource"
+                            "{extra} FROM events WHERE ({terms}) LAST {hours} HOURS")
+        return base.replace("{extra}", extra).replace("{terms}", " OR ".join(terms) or "1 = 0").replace("{hours}", str(int(hours)))
+
+    @staticmethod
+    def build_es_query(iocs: dict[str, dict], hours: int) -> dict[str, Any]:
+        ips = [i for i, m in iocs.items() if m["kind"] == "ip"]
+        doms = [i for i, m in iocs.items() if m["kind"] == "domain"]
+        hashes = [i for i, m in iocs.items() if m["kind"] == "hash"]
+        should = [{"terms": {f: ips}} for f in ECS_IP if ips] + [{"terms": {f: doms}} for f in ECS_DOMAIN if doms] + \
+                 [{"terms": {f: hashes}} for f in ECS_HASH if hashes]
+        return {"bool": {"filter": [{"range": {"@timestamp": {"gte": f"now-{int(hours)}h"}}}],
+                         "should": should or [{"match_none": {}}], "minimum_should_match": 1}}
+
     # ------------------------------------------------------------------ run
     def run(self, ctx: AgentContext, state: PipelineState) -> PipelineState:
         cfg = ctx.settings.raw.get("threat_hunt") or {}
@@ -204,7 +273,25 @@ class ThreatHuntAgent(BaseAgent):
             ad.require("base_url", "token")
             with http_client(300, verify=s.get("ca_bundle") or True) as c:
                 return ad._search(c, self.build_spl(iocs, hours, s.get("scope", "index=*"), override), f"-{hours}h")
-        raise ValueError(f"threat_hunt.provider must be sentinel or splunk, not {provider!r}")
+        if provider == "qradar":
+            from ..connectors.adapters.qradar import QRadarAdapter
+            ad = QRadarAdapter(Domain.SOC, "Threat hunt", {**s, "aql": "hunt"})
+            ad.require("base_url", "token")
+            with http_client(300, verify=s.get("ca_bundle") or True) as c:
+                hits = ad.run_aql(c, self.build_aql(iocs, hours, s.get("domain_property"), s.get("hash_property"), override))
+            return _aggregate(hits, ("sourceip", "destinationip", "domain_value", "hash_value"), ("sourceip",),
+                              ("username",), "starttime", "logsource")
+        if provider == "elastic":
+            from ..connectors.adapters.elastic import ElasticAdapter
+            ad = ElasticAdapter(Domain.SOC, "Threat hunt", s)
+            ad.require("base_url", "index")
+            fields = ["@timestamp", "host.name", "user.name", "event.dataset", "event.module", *ECS_IP, *ECS_DOMAIN, *ECS_HASH]
+            with http_client(300, verify=s.get("ca_bundle") or True) as c:
+                hits = ad.search(c, s["index"], self.build_es_query(iocs, hours), int(s.get("max_rows", 5000)),
+                                 "@timestamp:desc", fields)
+            return _aggregate(hits, (*ECS_IP, *ECS_DOMAIN, *ECS_HASH), ("host.name", "source.ip"), ("user.name",),
+                              "@timestamp", "event.dataset")
+        raise ValueError(f"threat_hunt.provider must be sentinel, splunk, qradar or elastic, not {provider!r}")
 
     @staticmethod
     def to_findings(rows: list[dict[str, Any]], iocs: dict[str, dict], now: datetime) -> list[Finding]:

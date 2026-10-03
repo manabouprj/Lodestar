@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import httpx
 
+from .... import __version__
 from ....models import ControlHealth, Domain, Finding
 
 
@@ -61,7 +62,7 @@ def http_client(timeout: float = 30.0, verify: bool | str = True) -> httpx.Clien
         raise ValueError("Disabling TLS verification is not allowed; provide a CA bundle path instead")
     kw = {"transport": _TRANSPORT} if _TRANSPORT is not None else {}
     return httpx.Client(timeout=timeout, trust_env=True, verify=verify,
-                        headers={"User-Agent": "LODESTAR/2.0 (read-only)"}, **kw)
+                        headers={"User-Agent": f"LODESTAR/{__version__} (read-only)"}, **kw)
 
 
 def request_with_retry(client: httpx.Client, method: str, url: str, retries: int = 4, **kw) -> httpx.Response:

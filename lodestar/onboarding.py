@@ -29,7 +29,13 @@ SIEM_SETTINGS = {
     "sentinel": {"workspace_id": "${SENTINEL_WORKSPACE_ID}", "tenant_id": "${AZ_TENANT_ID}", "client_id": "${AZ_CLIENT_ID}",
                  "client_secret": "${AZ_CLIENT_SECRET}"},
     "splunk": {"base_url": "${SPLUNK_URL}", "token": "${SPLUNK_TOKEN}"},
+    "qradar": {"base_url": "${QRADAR_URL}", "token": "${QRADAR_TOKEN}"},
+    "elastic": {"base_url": "${ELASTIC_URL}", "api_key": "${ELASTIC_API_KEY}"},
+    "sumologic": {"base_url": "${SUMO_API_URL}", "access_id": "${SUMO_ACCESS_ID}", "access_key": "${SUMO_ACCESS_KEY}"},
+    "google_secops": {"base_url": "${SECOPS_API_URL}", "project": "${SECOPS_PROJECT}", "location": "${SECOPS_LOCATION}",
+                      "instance": "${SECOPS_INSTANCE}", "service_account_secret": "${GOOGLE_SECOPS_SA_JSON}"},
 }
+HUNT_PROVIDERS = ("sentinel", "splunk", "qradar", "elastic")         # SIEMs the ThreatHuntAgent can query
 
 
 # ------------------------------------------------------------------ YAML helpers
@@ -58,14 +64,14 @@ def connector_for(domain: str, siem: str, catalog: dict[str, Any]) -> tuple[dict
     """Pick the best template for a domain: the chosen SIEM, then a native adapter, then file drop / webhook."""
     entry = catalog.get(domain) or {}
     generic = catalog.get("_generic") or {}
-    for kind in ([siem] if siem in ("sentinel", "splunk") else []) + ["native", "file_drop", "webhook"]:
+    for kind in ([siem] if siem in SIEM_SETTINGS else []) + ["native", "file_drop", "webhook"]:
         t = entry.get(kind)
         if t is None:
             continue
         t = dict(t)
         t.pop("note", None)
         t.pop("permission", None)
-        if kind in ("sentinel", "splunk"):
+        if kind in SIEM_SETTINGS:
             settings = {**SIEM_SETTINGS[kind], **{k: v for k, v in t.items() if k != "product"}}
             return {"enabled": True, "adapter": kind, "product": t.get("product", domain), "settings": settings}, kind
         if kind == "native":
@@ -149,9 +155,12 @@ def init(*, org: str, vertical: str, siem: str, domains: list[str], primary_doma
         body.update({"mode": "live", "deployment_phase": 1,
                      "assets": {"path": "config/assets.csv"}})
     body["identity"] = {"path": "config/identities.csv", "primary_domain": primary_domain or "", "domains": []}
-    if siem in SIEM_SETTINGS:
+    if siem in HUNT_PROVIDERS:
+        hunt_settings = dict(SIEM_SETTINGS[siem])
+        if siem == "elastic":
+            hunt_settings["index"] = "logs-*"
         body["threat_hunt"] = {"enabled": "threat_intel" in domains, "provider": siem, "lookback_hours": 24,
-                               "max_iocs": 500, "ioc_max_age_days": 30, "settings": dict(SIEM_SETTINGS[siem])}
+                               "max_iocs": 500, "ioc_max_age_days": 30, "settings": hunt_settings}
     body["connectors"] = connectors
 
     created: list[str] = []
@@ -398,6 +407,14 @@ def doctor(config: str | None = None, online: bool = False) -> Report:
                      f"KRIs measured {snap.kri_coverage_pct}%", "" if (snap.kri_coverage_pct or 0) >= 60 else "lodestar kpis")
         elif live:
             r.warn(tag, "no pipeline run yet", f"lodestar run --org {t.org_key}")
+        ing = ((res.data_quality.get("ingestion") or {}).get("sources") or {}) if res else {}
+        bad = {k: v for k, v in ing.items() if v.get("state") in ("failing", "stale", "volume_drop", "volume_spike", "degraded")}
+        if ing and not bad:
+            r.ok(tag, f"ingestion: {len(ing)} source(s) monitored, none failing or stale")
+        for k, v in sorted(bad.items()):
+            (r.fail if live and v["state"] in ("failing", "stale") else r.warn)(
+                tag, f"ingestion {k}: {v['state']} - {v.get('detail', '')[:120]}",
+                f"lodestar check-ingestion --domain {v.get('domain')}")
     # SSO
     oidc = (raw.get("security") or {}).get("oidc") or {}
     if oidc.get("issuer") and not ENV_RE.search(str(oidc.get("issuer"))):
@@ -437,6 +454,8 @@ def _hosts(obj: Any) -> set[str]:
                 out.add("https://login.microsoftonline.com")
             if k == "workspace_id" and v:
                 out.add("https://api.loganalytics.io")
+            if k == "service_account_secret" and v:
+                out.add("https://oauth2.googleapis.com")
             out |= _hosts(v)
     elif isinstance(obj, list):
         for v in obj:

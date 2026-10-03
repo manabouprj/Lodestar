@@ -88,6 +88,17 @@ def _external(result: PipelineResult, assets: dict[str, str]) -> dict[str, Any]:
     }
 
 
+def _ingestion(result: PipelineResult) -> list[dict[str, Any]]:
+    from .agents.connectors.domains import default_cadence
+    from .ingestion import STATE_RANK
+    rows = []
+    for key, r in ((result.data_quality.get("ingestion") or {}).get("sources") or {}).items():
+        rows.append({"source": key, "product": r.get("product"), "state": r.get("state", "healthy"),
+                     "every": r.get("cadence_minutes", default_cadence(r.get("domain") or "soc")),
+                     "items": r.get("items"), "last_success": r.get("last_success"), "detail": r.get("detail", "")[:160]})
+    return sorted(rows, key=lambda x: (-STATE_RANK.get(x["state"], 0), x["source"]))
+
+
 def build_payload(result: PipelineResult, assets: dict[str, str] | None = None) -> dict[str, Any]:
     v = load_vertical(result.vertical)
     assets = assets or result.asset_names
@@ -143,6 +154,7 @@ def build_payload(result: PipelineResult, assets: dict[str, str] | None = None) 
         "chat": precomputed(result),
         "fraud": _fraud(result, assets),
         "external": _external(result, assets),
+        "ingestion": _ingestion(result),
         "data_quality": {k: result.data_quality.get(k) for k in ("trust_score", "confidence", "asset_match_rate_pct", "stale_connectors",
                          "mandatory_controls_missing", "duplicates_removed", "today_deferred", "phase", "agent_failures")},
     }

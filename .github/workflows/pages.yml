@@ -1,36 +1,61 @@
-# Publishes the DEMO dashboard and sample reports (fictional data only) to GitHub Pages.
-# Enable once: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+# Publishes the DEMO dashboard and sample reports (fictional data only) to GitHub Pages:
+#   https://manabouprj.github.io/Lodestar/
+# One-time setup: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+# (NOT "Deploy from a branch" - that serves the repository files and the dashboard returns 404).
 # Never point this workflow at a live configuration: it always runs `lodestar demo`.
 name: demo-dashboard
 on:
   push:
     branches: [main]
-    paths: ["lodestar/**", "config/**", ".github/workflows/pages.yml"]
+    paths: ["lodestar/**", "config/**", "requirements.txt", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
-concurrency: {group: pages, cancel-in-progress: true}
+concurrency: {group: pages, cancel-in-progress: false}
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1          # v7.0.1
+        with: {persist-credentials: false}
+      - name: Check that Pages publishes from GitHub Actions
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d   # v6.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97      # v7.0.0
         with: {python-version: "3.12", cache: pip}
       - run: pip install -r requirements.txt
       - name: Build demo site
         run: |
           python -m lodestar demo --out site/index.html
           cp -r reports site/reports
-          touch site/.nojekyll
-      - uses: actions/upload-pages-artifact@v3
+          test -s site/index.html && grep -q "LODESTAR" site/index.html
+          ls -la site
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9   # v5.0.0
         with: {path: site}
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs: {page_url: "${{ steps.deployment.outputs.page_url }}"}
     environment: {name: github-pages, url: "${{ steps.deployment.outputs.page_url }}"}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346      # v5.0.1
+  verify:
+    # a green deploy is not proof the page is served (Pages can be switched off or pointed at a branch later)
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Smoke-test the published dashboard
+        env: {URL: "${{ needs.deploy.outputs.page_url }}"}
+        run: |
+          for i in $(seq 1 20); do
+            code=$(curl -sL -o page.html -w '%{http_code}' "$URL" || echo 000)
+            if [ "$code" = "200" ] && grep -q "LODESTAR" page.html; then echo "OK: $URL serves the demo dashboard"; exit 0; fi
+            echo "attempt $i: HTTP $code from $URL"; sleep 15
+          done
+          echo "::error::$URL does not serve the dashboard. Check Settings > Pages > Source = GitHub Actions."
+          exit 1

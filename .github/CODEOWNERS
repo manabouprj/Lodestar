@@ -1,0 +1,6 @@
+# Every change needs the owner's review; integration and security-sensitive code is listed explicitly.
+*                                         @manabouprj
+/lodestar/agents/connectors/              @manabouprj
+/lodestar/api/                            @manabouprj
+/config/templates/                        @manabouprj
+/.github/                                 @manabouprj

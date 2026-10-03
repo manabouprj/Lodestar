@@ -347,6 +347,8 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-3);display:grid;gap:4px}
     <div class="sec-head"><h2>Control assurance</h2><p>Is each control deployed, fresh and doing its job? Effectiveness = coverage, data freshness, policy drift and health.</p></div>
     <div class="ctl-grid" id="controls"></div>
     <div class="ni" id="not-integrated"></div>
+    <h3 style="margin:18px 0 8px;font-size:15px">Ingestion health <span id="ing-sum" style="font-weight:400;color:var(--ink-3)"></span></h3>
+    <div class="panel tscroll"><table id="ingestion"><thead><tr><th>Source</th><th>Product</th><th>State</th><th class="r">Every</th><th class="r">Items</th><th>Last success</th><th>Why</th></tr></thead><tbody></tbody></table></div>
   </section>
 
   <section class="two">
@@ -503,6 +505,12 @@ const LODESTAR_DATA = /*__LODESTAR_DATA__*/null;
       <div class="bar" role="img" aria-label="Effectiveness ${c.effectiveness} of 100"><i style="width:${c.effectiveness}%"></i></div>
       <div class="stats"><span>eff ${fmt(c.effectiveness)}</span><span>cov ${fmt(c.coverage,"%")}</span><span>${c.freshness_h<1?"live":fmt(c.freshness_h,"h old")}</span><span>${c.open} open</span></div>
       ${c.issues.length?`<div class="iss">${esc(c.issues[0])}</div>`:""}</div>`).join("");
+    const ING = P.ingestion || [], cls = {retrying:"degraded",volume_spike:"degraded",volume_drop:"failing",awaiting_data:"no_data"};
+    $("#ing-sum").textContent = ING.length ? `- ${ING.filter(r=>r.state==="healthy").length} of ${ING.length} sources healthy; validated every run` : "";
+    $("#ingestion tbody").innerHTML = ING.length ? ING.map(r=>`<tr><td>${esc(r.source)}</td><td>${esc(r.product||"")}</td>
+      <td><span class="st ${cls[r.state]||r.state}">${esc(r.state.replace("_"," "))}</span></td><td class="r num">${r.every==null?"-":r.every+" min"}</td>
+      <td class="r num">${r.items==null?"-":r.items}</td><td class="num">${esc((r.last_success||"never").slice(0,16).replace("T"," "))}</td><td>${esc(r.detail||"")}</td></tr>`).join("")
+      : `<tr><td colspan=7>No ingestion sources monitored yet.</td></tr>`;
     const ni = P.not_integrated;
     $("#not-integrated").innerHTML = ni.length ? "Not integrated: " + ni.map(n=>esc(n.title)+(n.mandatory?" <b style='color:var(--crit)'>(mandatory for this industry)</b>":"")).join(", ") : "All control domains integrated.";
   }

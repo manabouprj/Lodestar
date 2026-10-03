@@ -16,9 +16,12 @@ see the organisations they are mapped to.
 Webhook ingestion (POST /api/ingest/{domain}?org=<key>) is authenticated with an HMAC-SHA256 signature
 (header X-Lodestar-Signature: sha256=<hex>) using LODESTAR_WEBHOOK_SECRET_<ORG_KEY> or LODESTAR_WEBHOOK_SECRET.
 Ops: /healthz (liveness), /readyz (store + data freshness), /metrics (Prometheus, LODESTAR_METRICS_TOKEN).
+MCP: /mcp/ - read-only Model Context Protocol server for AI assistants and agents (lodestar/mcp_server.py),
+same principals, roles and organisation scoping as the REST API; mcp.enabled: false switches it off.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -132,8 +135,42 @@ def need(min_role: str):
     return dep
 
 
-app = FastAPI(title="LODESTAR", version=__version__,
+# ---------------------------------------------------------------- MCP (Model Context Protocol) at /mcp/
+def _mcp_enabled() -> bool:
+    try:
+        return bool((get_settings().raw.get("mcp") or {}).get("enabled", True))
+    except Exception:
+        return False
+
+
+def _mcp_gate():
+    from ..mcp_server import MCPGate
+    return MCPGate(lambda: _auth_required(get_settings()), get_oidc,
+                   audit=lambda actor, event, details: get_store().audit(actor, event, details))
+
+
+MCP_GATE = _mcp_gate()
+
+
+@contextlib.asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Start a fresh MCP server per API start-up (stateless streamable HTTP, JSON responses)."""
+    if not _mcp_enabled():
+        MCP_GATE.inner = None
+        yield
+        return
+    from ..mcp_server import Hub, build_server
+    srv = build_server(Hub(get_store, lambda key: tenant(key)))
+    MCP_GATE.inner = srv.streamable_http_app(streamable_http_path="/", stateless_http=True, json_response=True,
+                                             host="0.0.0.0")
+    async with srv.session_manager.run():
+        yield
+    MCP_GATE.inner = None
+
+
+app = FastAPI(title="LODESTAR", version=__version__, lifespan=lifespan,
               description="Security posture intelligence & prioritisation agents")
+app.mount("/mcp", MCP_GATE)
 
 
 @app.middleware("http")
@@ -367,6 +404,16 @@ def attack_paths(org: Optional[str] = None, p: Principal = Depends(need("analyst
 @app.get("/api/controls")
 def controls(org: Optional[str] = None, p: Principal = Depends(need("analyst"))):
     return [c.model_dump(mode="json") for c in _result(get_store(), org, p).controls]
+
+
+@app.get("/api/ingestion")
+def ingestion(org: Optional[str] = None, p: Principal = Depends(need("analyst"))):
+    """Per-source ingestion state from the latest run: state, detail, checks, cadence, last success."""
+    r = _result(get_store(), org, p)
+    ing = r.data_quality.get("ingestion") or {}
+    return {"org": r.org_name, "generated_at": r.generated_at.isoformat(), "states": ing.get("states", {}),
+            "healthy_pct": ing.get("healthy_pct"), "sources": ing.get("sources", {}),
+            "transitions": ing.get("transitions", [])}
 
 
 @app.get("/api/compliance")
