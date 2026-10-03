@@ -45,7 +45,18 @@ jobs:
         with: {persist-credentials: false}
       - run: docker build -t lodestar:ci .
       - name: smoke test container
+        # container names need at least two characters ("l" was rejected by Docker: exit code 125)
         run: |
-          docker run -d --name l -p 8080:8080 lodestar:ci
-          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8080/healthz && break; sleep 2; done
-          docker exec l python -m lodestar validate
+          docker run -d --name lodestar-ci -p 127.0.0.1:18080:8080 lodestar:ci
+          ok=""
+          for i in $(seq 1 30); do
+            if curl -fs http://127.0.0.1:18080/healthz; then ok=1; echo; break; fi
+            sleep 2
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::/healthz did not answer within 60 s"; docker ps -a; docker logs lodestar-ci; exit 1
+          fi
+          docker exec lodestar-ci python -m lodestar validate
+      - name: container logs
+        if: always()
+        run: docker logs lodestar-ci 2>&1 | tail -50 || true

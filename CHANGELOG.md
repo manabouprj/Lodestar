@@ -3,6 +3,16 @@
 All notable changes to LODESTAR. Versions follow [semantic versioning](https://semver.org/); each release is a
 tag on `main`.
 
+## 2.2.3 - 2026-10-03
+
+### Fixed
+
+* **The CI `docker` job had failed on every run since v2.0.0** with exit code 125. The smoke test named its
+  container `l`, and Docker requires container names of at least two characters, so `docker run` was
+  rejected and the container was never started. The container is now `lodestar-ci`. It binds to
+  127.0.0.1:18080, waits up to 60 s for `/healthz`, prints `docker ps` and the container logs when it
+  fails, and always shows the last 50 log lines.
+
 ## 2.2.2 - 2026-10-03
 
 ### Fixed
