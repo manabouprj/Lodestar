@@ -23,12 +23,12 @@ Close and reopen PowerShell so the new commands are on your PATH. Check with `gi
 ## 2. Unpack the download
 
 ```powershell
-$zip = "$env:USERPROFILE\Downloads\lodestar-v2.2.1.zip"   # the version you downloaded
+$zip = "$env:USERPROFILE\Downloads\lodestar-v2.2.2.zip"   # the version you downloaded
 Unblock-File $zip                                   # removes the "downloaded from internet" flag so scripts run
 New-Item -ItemType Directory -Force C:\Projects | Out-Null
 Expand-Archive $zip -DestinationPath C:\Projects -Force
 cd C:\Projects\lodestar
-git log --oneline                                   # you should see the LODESTAR v1.0.0 ... v2.2.1 commits
+git log --oneline                                   # you should see the LODESTAR v1.0.0 ... v2.2.2 commits
 ```
 
 Use a short path outside OneDrive (for example `C:\Projects`) to avoid sync conflicts and
@@ -67,7 +67,7 @@ needs to be pasted.
 * **Code** tab: README renders with the architecture diagram.
 * **Actions** tab: the `ci` workflow runs lint, the full test suite (including the SIEM contract tests),
   `validate`, `doctor`, the demo build and a Docker build/smoke test. Download the `demo-dashboard-and-reports` artifact from the run.
-* **Releases**: optionally create a release from the latest tag (for example `v2.2.1`) and attach `samples/lodestar-dashboard.html`.
+* **Releases**: optionally create a release from the latest tag (for example `v2.2.2`) and attach `samples/lodestar-dashboard.html`.
 
 ## Update an existing GitHub repository
 
@@ -79,7 +79,7 @@ new commit, so the push is a simple fast-forward.
 ```powershell
 cd C:\Projects\lodestar                             # your existing clone
 git status                                         # commit or stash anything you changed first
-Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v2.2.1.zip" -DestinationPath C:\Temp\lodestar-new -Force
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v2.2.2.zip" -DestinationPath C:\Temp\lodestar-new -Force
 git fetch C:\Temp\lodestar-new\lodestar main --tags     # bring in the new commit from the unpacked copy
 git merge --ff-only FETCH_HEAD
 git push origin main --tags
@@ -89,7 +89,7 @@ git push origin main --tags
 
 ```powershell
 Rename-Item C:\Projects\lodestar lodestar-old
-Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v2.2.1.zip" -DestinationPath C:\Projects -Force
+Expand-Archive "$env:USERPROFILE\Downloads\lodestar-v2.2.2.zip" -DestinationPath C:\Projects -Force
 cd C:\Projects\lodestar
 git remote add origin https://github.com/manabouprj/Lodestar.git
 git push origin main --tags
@@ -100,12 +100,12 @@ git push origin main --tags
 commit to a branch and merge it through a pull request, so CI runs before it reaches `main`:
 
 ```powershell
-git push origin HEAD:release/v2.2.1
-Start-Process "https://github.com/manabouprj/Lodestar/compare/main...release/v2.2.1?expand=1"
+git push origin HEAD:release/v2.2.2
+Start-Process "https://github.com/manabouprj/Lodestar/compare/main...release/v2.2.2?expand=1"
 # create the pull request, wait for the checks, merge with "Create a merge commit", then:
 git checkout main; git pull origin main
-git push origin v2.2.1
-git push origin --delete release/v2.2.1
+git push origin v2.2.2
+git push origin --delete release/v2.2.2
 ```
 
 If Git says `rejected (non-fast-forward)`, someone changed GitHub directly (for example by editing
@@ -178,7 +178,7 @@ git commit -m "Add Bugcrowd adapter"
 git push -u origin feature/new-connector        # then open a pull request on GitHub
 ```
 
-Release: `git tag -a v2.2.1 -m "LODESTAR v2.2.1"` then `git push origin --tags`.
+Release: `git tag -a v2.2.2 -m "LODESTAR v2.2.2"` then `git push origin --tags`.
 
 ## Troubleshooting
 

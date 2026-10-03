@@ -370,7 +370,7 @@ only sees aggregates. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Status and roadmap
 
-Version 2.2.1 is production-ready for a single node serving one or many organisations. It includes:
+Version 2.2.2 is production-ready for a single node serving one or many organisations. It includes:
 
 * per-source ingestion cadence, an ingestion sanity test, and continuous ingestion validation with alerts;
 * a read-only MCP server for AI assistants, and an adapter for vendor MCP servers;

@@ -23,6 +23,19 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7.0.1
         if: matrix.python == '3.12'
         with: {name: demo-dashboard-and-reports, path: "dist/\nreports/"}
+  windows:
+    # many teams run LODESTAR on a Windows host (Task Scheduler): the lock must install there
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1          # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97      # v7.0.0
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_packaging.py tests/test_scoring.py
+      - run: python -m lodestar validate
+      - run: python -m lodestar demo --as-of 2026-10-01T02:00:00
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 30

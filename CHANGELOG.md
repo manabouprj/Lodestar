@@ -3,6 +3,17 @@
 All notable changes to LODESTAR. Versions follow [semantic versioning](https://semver.org/); each release is a
 tag on `main`.
 
+## 2.2.2 - 2026-10-03
+
+### Fixed
+
+* **`pip install -r requirements.txt` failed on Windows** with "uvloop does not support Windows". This
+  had been the case since v2.0.0. The lock is generated on Linux, so pip-compile pinned uvloop (a Linux and
+  macOS speed-up pulled in by `uvicorn[standard]`) without its platform marker. The pin now carries
+  `sys_platform != "win32"`, and uvicorn uses asyncio on Windows. `make lock` now runs
+  `scripts/lock.py`, which re-applies the marker on every regeneration. A regression test checks the lock,
+  and a new **windows** CI job installs the lock and runs validate and the demo on `windows-latest`.
+
 ## 2.2.1 - 2026-10-03
 
 ### Fixed
