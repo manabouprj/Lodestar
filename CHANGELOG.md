@@ -3,6 +3,21 @@
 All notable changes to LODESTAR. Versions follow [semantic versioning](https://semver.org/); each release is a
 tag on `main`.
 
+## 2.2.1 - 2026-10-03
+
+### Fixed
+
+* **Demo page (GitHub Pages) returned 404 while every deploy run was green.** The workflow now checks
+  in its build job that Pages publishes from GitHub Actions, and fails with a clear error if Pages is off
+  or set to "Deploy from a branch". A new **verify** job downloads the published URL after each deploy and
+  fails unless it serves the dashboard. Re-run *demo-dashboard* after setting Settings → Pages → Source:
+  GitHub Actions. Troubleshooting is in `docs/GITHUB_SETUP.md`.
+* GitHub Actions moved to their Node 24 releases (checkout v7.0.1, setup-python v7.0.0, upload-artifact
+  v7.0.1, configure-pages v6.0.0, upload-pages-artifact v5.0.0, deploy-pages v5.0.1), pinned by SHA. This
+  removes the Node 20 deprecation warnings.
+* The Pages workflow also runs when `requirements.txt` changes, and no longer cancels a deployment in
+  progress.
+
 ## 2.2.0 - 2026-10-03
 
 ### Added
