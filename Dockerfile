@@ -1,5 +1,5 @@
 # LODESTAR - production image (non-root, read-only friendly)
-FROM python:3.12-slim AS base
+FROM python:3.14-slim AS base
 LABEL org.opencontainers.image.title="LODESTAR" org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/manabouprj/Lodestar"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
